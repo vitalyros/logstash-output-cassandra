@@ -42,6 +42,18 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # Event level processing (e.g. %{[key]}) is supported
   config :filter_transform_event_key, :validate => :string, :default => nil
 
+  # An optional hints hash which will be used in case filter_transform or filter_transform_event_key are not in use
+  # It is used to trigger a forced type casting to the cassandra driver types in
+  # the form of a hash from column name to type name in the following manner:
+  # hints => {
+  #    id => "int"
+  #    at => "timestamp"
+  #    resellerId => "int"
+  #    errno => "int"
+  #    duration => "float"
+  #    ip => "inet" }
+  config :hints, :validate => :hash, :default => {}
+
   # The retry policy to use
   # The available options are:
   # * default => retry once if needed / possible
@@ -153,24 +165,20 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   def build_cassandra_action(event)
     action = {}
     action["table"] = event.sprintf(@table)
-    filter_transform = get_field_transform(event)
+    filter_transform = get_filter_transform(event)
     if filter_transform
       action["data"] = {}
       for filter in filter_transform
         add_event_value_from_filter_to_action(event, filter, action)
       end
     else
-      action["data"] = event.to_hash()
-      # Filter out @timestamp, @version, etc to be able to use elasticsearch input plugin directly
-      action["data"].reject!{|key| %r{^@} =~ key}
-      # TODO: add the hint thing here?!...
-      #convert_values_to_cassandra_types!(action)
+      add_event_data_using_configured_hints(event, action)
     end
 
     return action
   end
 
-  def get_field_transform(event)
+  def get_filter_transform(event)
     filter_transform = nil
     if @filter_transform_event_key
       filter_transform = event.sprintf(@filter_transform_event_key)
@@ -207,7 +215,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
       query = "INSERT INTO #{@keyspace}.#{action["table"]} (#{action["data"].keys.join(', ')})
         VALUES (#{("?" * action["data"].keys.count).split(//) * ", "})"
 
-      if !@statement_cache.key?(query)
+      if !@statement_cache.has_key?(query)
         @statement_cache[query] = @session.prepare(query)
       end
       statement_and_values << [@statement_cache[query], action["data"].values]
@@ -300,11 +308,14 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
     end
   end
 
-  # def convert_values_to_cassandra_types!(msg)
-  #   @hints.each do |key, value|
-  #     if msg.key?(key)
-  #
-  #     end
-  #   end
-  # end
+  def add_event_data_using_configured_hints(event, action)
+    action["data"] = event.to_hash()
+    # Filter out @timestamp, @version, etc to be able to use elasticsearch input plugin directly
+    action["data"].reject!{|key| %r{^@} =~ key}
+    @hints.each do |event_key, cassandra_type|
+      if action["data"].has_key?(event_key)
+        event_data = convert_value_to_cassandra_type(action["data"][event_key], cassandra_type)
+      end
+    end
+  end
 end
