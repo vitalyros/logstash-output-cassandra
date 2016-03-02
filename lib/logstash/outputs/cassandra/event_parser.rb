@@ -5,13 +5,13 @@ require "cassandra"
 
 module LogStash; module Outputs; module Cassandra
   class EventParser
-    def initialize(table, filter_transform_event_key, filter_transform, hints, ignore_bad_values, logger)
+    def initialize(logger, table, filter_transform_event_key, filter_transform, hints, ignore_bad_values)
+      @logger = logger
       @table = table
       @filter_transform_event_key = filter_transform_event_key
       @filter_transform = filter_transform
       @hints = hints
       @ignore_bad_values = ignore_bad_values
-      @logger = logger
     end
 
     def parse(event)
