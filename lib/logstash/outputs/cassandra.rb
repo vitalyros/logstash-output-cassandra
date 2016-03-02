@@ -2,11 +2,11 @@
 require "logstash/outputs/base"
 require "logstash/namespace"
 require "time"
-require "logstash/outputs/cassandra/buffer"
+require "logstash/outputs/buffer"
 require "cassandra"
 
 
-class LogStash::Outputs::Cassandra < LogStash::Outputs::Base
+class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
 
   milestone 1
 
@@ -119,13 +119,13 @@ class LogStash::Outputs::Cassandra < LogStash::Outputs::Base
   end
 
   def setup_buffer_and_handler
-    @buffer = ::LogStash::Outputs::Cassandra::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
+    @buffer = ::LogStash::Outputs::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
       safe_submit(actions)
     end
   end
 
   def setup_cassandra_session()
-    cluster = Cassandra.cluster(
+    cluster = ::Cassandra.cluster(
       username: @username,
       password: @password,
       hosts: @hosts,
