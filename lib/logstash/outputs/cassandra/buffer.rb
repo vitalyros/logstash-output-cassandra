@@ -1,7 +1,7 @@
 require 'concurrent'
 java_import java.util.concurrent.locks.ReentrantLock
 
-module LogStash; module Outputs; class Cassandra
+module LogStash; module Outputs; module Cassandra
   class Buffer
     def initialize(logger, max_size, flush_interval, &block)
       @logger = logger
