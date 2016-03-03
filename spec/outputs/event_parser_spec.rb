@@ -1,3 +1,4 @@
+# encoding: utf-8
 require_relative "../cassandra_spec_helper"
 require "logstash/outputs/cassandra/event_parser"
 
@@ -18,6 +19,13 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       sut_instance = sut().new(default_opts.update({ "table" => "simple" }))
       action = sut_instance.parse(sample_event)
       expect(action["table"]).to(eq("simple"))
+    end
+
+    it "parses table names with data from the event" do
+      sut_instance = sut().new(default_opts.update({ "table" => "%{[a_field]}" }))
+      sample_event["a_field"] = "a_value"
+      action = sut_instance.parse(sample_event)
+      expect(action["table"]).to(eq("a_value"))
     end
     # @table
     # => regular table name
