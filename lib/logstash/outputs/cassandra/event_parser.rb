@@ -9,6 +9,7 @@ module LogStash; module Outputs; module Cassandra
       @logger = logger
       @table = table
       @filter_transform_event_key = filter_transform_event_key
+      assert_filter_transform_structure(filter_transform) if filter_transform
       @filter_transform = filter_transform
       @hints = hints
       @ignore_bad_values = ignore_bad_values
@@ -40,6 +41,14 @@ module LogStash; module Outputs; module Cassandra
         filter_transform = @filter_transform
       end
       return filter_transform
+    end
+
+    def assert_filter_transform_structure(filter_transform)
+      for item in filter_transform
+        if !item.has_key?("event_key") || !item.has_key?("column_name") || !item.has_key?("cassandra_type")
+          raise "item is incorrectly configured in filter_transform:\nitem => #{item}\nfilter_transform => #{filter_transform}"
+        end
+      end
     end
 
     def add_event_value_from_filter_to_action(event, filter, action)

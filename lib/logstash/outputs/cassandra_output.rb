@@ -95,7 +95,6 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   config :idle_flush_time, :validate => :number, :default => 1
 
   def register()
-    assert_filter_transform_structure(@filter_transform) if @filter_transform
     setup_event_parser()
     setup_safe_submitter()
     setup_buffer_and_handler()
@@ -121,18 +120,10 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   end
 
   private
-  def assert_filter_transform_structure(filter_transform)
-    for item in filter_transform
-      if !item.has_key?("event_key") || !item.has_key?("column_name") || !item.has_key?("cassandra_type")
-        raise "item is incorrectly configured in filter_transform:\nitem => #{item}\nfilter_transform => #{filter_transform}"
-      end
-    end
-  end
-
-  def setup_buffer_and_handler
-    @buffer = ::LogStash::Outputs::CassandraOutput::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
-      @safe_submitter.submit(actions)
-    end
+  def setup_event_parser()
+    @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
+      @logger, @table, @filter_transform_event_key, @filter_transform, @hints, @ignore_bad_values
+    )
   end
 
   def setup_safe_submitter()
@@ -141,9 +132,9 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
     )
   end
 
-  def setup_event_parser()
-    @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
-      @logger, @table, @filter_transform_event_key, @filter_transform, @hints, @ignore_bad_values
-    )
+  def setup_buffer_and_handler
+    @buffer = ::LogStash::Outputs::CassandraOutput::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
+      @safe_submitter.submit(actions)
+    end
   end
 end
