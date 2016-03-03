@@ -1,10 +1,28 @@
 require_relative "../cassandra_spec_helper"
 require "logstash/outputs/cassandra/event_parser"
 
-describe LogStash::Outputs::Cassandra::EventParser do
-  # @table
-  # => regular table name
-  # => event table name
+RSpec.describe LogStash::Outputs::Cassandra::EventParser do
+  let(:sut) { LogStash::Outputs::Cassandra::EventParser }
+  let(:default_opts) {{
+    'logger' => double(),
+    'table' => 'dummy',
+    'filter_transform_event_key' => nil,
+    'filter_transform' => nil,
+    'hints' => {},
+    'ignore_bad_values' => false
+  }}
+  let(:sample_event) { LogStash::Event.new("message" => "sample message here") }
+
+  describe "table name parsing" do
+    it "leaves regular table names unchanged" do
+      sut_instance = sut().new(default_opts.update({ "table" => "simple" }))
+      action = sut_instance.parse(sample_event)
+      expect(action["table"]).to(eq("simple"))
+    end
+    # @table
+    # => regular table name
+    # => event table name
+  end
 
   # @filter_transform_event_key
   # => get from event

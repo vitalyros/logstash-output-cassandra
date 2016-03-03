@@ -5,14 +5,14 @@ require "cassandra"
 
 module LogStash; module Outputs; module Cassandra
   class EventParser
-    def initialize(logger, table, filter_transform_event_key, filter_transform, hints, ignore_bad_values)
-      @logger = logger
-      @table = table
-      @filter_transform_event_key = filter_transform_event_key
-      assert_filter_transform_structure(filter_transform) if filter_transform
-      @filter_transform = filter_transform
-      @hints = hints
-      @ignore_bad_values = ignore_bad_values
+    def initialize(opts)
+      @logger = opts['logger']
+      @table = opts['table']
+      @filter_transform_event_key = opts['filter_transform_event_key']
+      assert_filter_transform_structure(opts['filter_transform']) if opts['filter_transform']
+      @filter_transform = opts['filter_transform']
+      @hints = opts['hints']
+      @ignore_bad_values = opts['ignore_bad_values']
     end
 
     def parse(event)
