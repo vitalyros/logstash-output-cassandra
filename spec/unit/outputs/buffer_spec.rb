@@ -1,7 +1,7 @@
 require "logstash/outputs/cassandra/buffer"
-require 'cabin'
+require "cabin"
 
-describe ::LogStash::Outputs::Cassandra::Buffer do
+describe LogStash::Outputs::Cassandra::Buffer do
   class OperationTarget # Used to track buffer flushesn
     attr_reader :buffer, :buffer_history, :receive_count
     def initialize
