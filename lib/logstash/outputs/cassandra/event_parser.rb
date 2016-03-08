@@ -143,9 +143,9 @@ module LogStash; module Outputs; module Cassandra
           return ::Cassandra::Types::Timeuuid
         when /^set\((.*)\)$/
           set_type = get_cassandra_type_generator($1)
-          return Cassandra::Types::Set(set_type)
+          return ::Cassandra::Types::Set.new(set_type)
         else
-          raise "Unknown cassandra_type #{cassandra_type}"
+          raise "Unknown cassandra_type #{name}"
       end
     end
   end

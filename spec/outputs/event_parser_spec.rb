@@ -103,8 +103,21 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           end
         }
 
-        it "properly maps sets to their specific set types"
+        it "properly maps sets to their specific set types" do
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set(int)" }] }))
+          original_value = [ 1, 2, 3 ]
+          sample_event["a_field"] = original_value
+          action = sut_instance.parse(sample_event)
+          expect(action["data"]["a_column"].to_a).to(eq(original_value))
+        end
+
         it "allows for event specific cassandra types"
+
+        it "fails in case of an unknown type" do
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "what?!" }] }))
+          sample_event["a_field"] = "a_value"
+          expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
+        end
       end
     end
 
