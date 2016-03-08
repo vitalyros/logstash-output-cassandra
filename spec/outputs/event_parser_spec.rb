@@ -34,14 +34,16 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     describe "from config" do
       describe "malformed configurations" do
         it "fails if the transform has no event_data setting" do
-          expect { sut().new(default_opts.update({ "filter_transform" => [{ "column_name" => "" }] })) }.to raise_error
+          expect { sut().new(default_opts.update({ "filter_transform" => [{ "column_name" => "" }] })) }.to raise_error(/item is incorrectly configured/)
         end
 
         it "fails if the transform has no column_name setting" do
-          expect { sut().new(default_opts.update({ "filter_transform" => [{ "event_data" => "" }] })) }.to raise_error
+          expect { sut().new(default_opts.update({ "filter_transform" => [{ "event_data" => "" }] })) }.to raise_error(/item is incorrectly configured/)
         end
       end
+
       # => single
+
       # => multiple
       # => without type
       # => with type
