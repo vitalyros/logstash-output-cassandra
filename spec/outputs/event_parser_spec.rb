@@ -138,10 +138,13 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     end
   end
 
-  # @hints
-  # => does nothing for none
-  # => hints what it knows
-  # => fails for unknown types
+  describe "hints" do
+    it "removes fields starting with @"
+    it "does not attempt to change items with no hints"
+    it "converts items with hints"
+    it "fails for unknown hints"
+    it "fails for unsuccessful hint conversion"
+  end
 
   # @ignore_bad_values
   # => fails on bad values if false
