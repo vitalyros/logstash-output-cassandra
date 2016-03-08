@@ -173,7 +173,13 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
     end
 
-    it "fails for unsuccessful hint conversion"
+    it "fails for unsuccessful hint conversion" do
+      options = default_opts.update({ "hints" => { "a_field" => "int" } })
+      expect(options['logger']).to(receive(:error))
+      sut_instance = sut().new(options)
+      sample_event["a_field"] = "i am not an int!!!"
+      expect { sut_instance.parse(sample_event) }.to raise_error(/Cannot convert/)
+    end
   end
 
   # @ignore_bad_values
