@@ -35,7 +35,7 @@ module LogStash; module Outputs; module Cassandra
     def get_filter_transform(event)
       filter_transform = nil
       if @filter_transform_event_key
-        filter_transform = event.sprintf(@filter_transform_event_key)
+        filter_transform = event[@filter_transform_event_key]
         assert_filter_transform_structure(filter_transform)
       elsif @filter_transform
         filter_transform = @filter_transform
