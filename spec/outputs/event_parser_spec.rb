@@ -61,14 +61,21 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         end
 
         it "allows for event specific event keys" do
-          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "%{[a_field]}", "column_name" => "a_column" }] }))
-          sample_event["a_field"] = "another_field"
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "%{[pointer_to_another_field]}", "column_name" => "a_column" }] }))
+          sample_event["pointer_to_another_field"] = "another_field"
           sample_event["another_field"] = "a_value"
           action = sut_instance.parse(sample_event)
           expect(action["data"]["a_column"]).to(eq("a_value"))
         end
 
-        it "allows for event specific column names"
+        it "allows for event specific column names" do
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "%{[pointer_to_another_field]}" }] }))
+          sample_event["a_field"] = "a_value"
+          sample_event["pointer_to_another_field"] = "a_different_column"
+          action = sut_instance.parse(sample_event)
+          expect(action["data"]["a_different_column"]).to(eq("a_value"))
+        end
+
         it "allows for event specific cassandra types"
       end
 
