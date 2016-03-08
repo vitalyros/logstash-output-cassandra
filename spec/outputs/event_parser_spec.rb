@@ -50,7 +50,16 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         end
 
         it "transforms to the cassandra type"
-        it "works with multiple filter transforms"
+
+        it "works with multiple filter transforms" do
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column" }, { "event_key" => "another_field", "column_name" => "a_different_column" }] }))
+          sample_event["a_field"] = "a_value"
+          sample_event["another_field"] = "a_second_value"
+          action = sut_instance.parse(sample_event)
+          expect(action["data"]["a_column"]).to(eq("a_value"))
+          expect(action["data"]["a_different_column"]).to(eq("a_second_value"))
+        end
+
         it "allows for event specific event keys"
         it "allows for event specific column names"
         it "allows for event specific cassandra types"
