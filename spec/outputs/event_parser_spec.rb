@@ -167,7 +167,12 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       expect(action["data"]["an_int"]).to(eql(123))
     end
 
-    it "fails for unknown hints"
+    it "fails for unknown hint types" do
+      sut_instance = sut().new(default_opts.update({ "hints" => { "a_field" => "not_a_real_type" } }))
+      sample_event["a_field"] = "a value"
+      expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
+    end
+
     it "fails for unsuccessful hint conversion"
   end
 
