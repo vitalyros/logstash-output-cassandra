@@ -111,7 +111,13 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_column"].to_a).to(eq(original_value))
         end
 
-        it "allows for event specific cassandra types"
+        it "allows for event specific cassandra types" do
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "%{[pointer_to_a_field]}" }] }))
+          sample_event["a_field"] = "123"
+          sample_event["pointer_to_a_field"] = "int"
+          action = sut_instance.parse(sample_event)
+          expect(action["data"]["a_column"]).to(eq(123))
+        end
 
         it "fails in case of an unknown type" do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "what?!" }] }))
