@@ -29,7 +29,6 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     end
   end
 
-  # @filter_transform
   describe "filter transforms" do
     describe "from config" do
       describe "malformed configurations" do
@@ -38,20 +37,33 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         end
 
         it "fails if the transform has no column_name setting" do
-          expect { sut().new(default_opts.update({ "filter_transform" => [{ "event_data" => "" }] })) }.to raise_error(/item is incorrectly configured/)
+          expect { sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "" }] })) }.to raise_error(/item is incorrectly configured/)
         end
       end
 
-      # => single
+      describe "properly configured" do
+        it "maps the event key to the column" do
+          sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column" }] }))
+          sample_event["a_field"] = "a_value"
+          action = sut_instance.parse(sample_event)
+          expect(action["data"]["a_column"]).to(eq("a_value"))
+        end
 
-      # => multiple
-      # => without type
-      # => with type
+        it "transforms to the cassandra type"
+        it "works with multiple filter transforms"
+        it "allows for event specific event keys"
+        it "allows for event specific column names"
+        it "allows for event specific cassandra types"
+      end
+
+      describe "cassandra type mapping" do
+        it "properly maps hints to their respective cassandra types"
+        it "properly maps sets to their specific set types"
+      end
     end
 
     describe "from event" do
-      # @filter_transform_event_key
-      # => get from event
+      it "obtains the filter transform from the event if defined"
     end
   end
 

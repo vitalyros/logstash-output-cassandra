@@ -45,14 +45,14 @@ module LogStash; module Outputs; module Cassandra
 
     def assert_filter_transform_structure(filter_transform)
       for item in filter_transform
-        if !item.has_key?("event_key") || !item.has_key?("column_name") || !item.has_key?("cassandra_type")
+        if !item.has_key?("event_key") || !item.has_key?("column_name")
           raise "item is incorrectly configured in filter_transform:\nitem => #{item}\nfilter_transform => #{filter_transform}"
         end
       end
     end
 
     def add_event_value_from_filter_to_action(event, filter, action)
-      event_data = event.sprintf(filter["event_data"])
+      event_data = event[event.sprintf(filter["event_key"])]
       if filter.has_key?("cassandra_type")
         cassandra_type = event.sprintf(filter["cassandra_type"])
         event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
