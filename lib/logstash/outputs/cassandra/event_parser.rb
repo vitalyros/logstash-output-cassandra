@@ -80,8 +80,8 @@ module LogStash; module Outputs; module Cassandra
       rescue Exception => e
         error_message = "Cannot convert `value (`#{event_data}`) to `#{cassandra_type}` type"
         if @ignore_bad_values
-          case event_data
-            when 'int', 'varint', 'bigint', 'double', 'decimal', 'counter'
+          case cassandra_type
+            when 'int', 'varint', 'bigint', 'double', 'counter'
               typed_event_data = 0
             when 'timeuuid'
               typed_event_data = generator.new("00000000-0000-0000-0000-000000000000")
@@ -91,12 +91,6 @@ module LogStash; module Outputs; module Cassandra
               typed_event_data = generator.new("0.0.0.0")
             when 'float'
               typed_event_data = generator.new(0)
-            when 'boolean'
-              typed_event_data = generator.new(false)
-            when 'text', 'varchar', 'ascii'
-              typed_event_data = generator.new(0)
-            when 'blob'
-              typed_event_data = generator.new(nil)
             when /^set\((.*)\)$/
               typed_event_data = generator.new([])
           end
