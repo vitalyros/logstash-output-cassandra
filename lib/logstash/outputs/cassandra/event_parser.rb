@@ -67,7 +67,7 @@ module LogStash; module Outputs; module Cassandra
       action["data"].reject!{|key| %r{^@} =~ key}
       @hints.each do |event_key, cassandra_type|
         if action["data"].has_key?(event_key)
-          event_data = convert_value_to_cassandra_type(action["data"][event_key], cassandra_type)
+          action["data"][event_key] = convert_value_to_cassandra_type(action["data"][event_key], cassandra_type)
         end
       end
     end

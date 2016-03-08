@@ -156,7 +156,17 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       expect(action["data"]["no_hint_here"]).to(equal(expected_value))
     end
 
-    it "converts items with hints"
+    it "converts items with hints" do
+      sut_instance = sut().new(default_opts.update({ "hints" => { "a_set" => "set(int)", "an_int" => "int" } }))
+      original_set = [ 1, 2, 3 ]
+      sample_event["a_set"] = original_set
+      sample_event["an_int"] = "123"
+      action = sut_instance.parse(sample_event)
+      expect(action["data"]["a_set"]).to(be_a(Set))
+      expect(action["data"]["a_set"].to_a).to(eql(original_set))
+      expect(action["data"]["an_int"]).to(eql(123))
+    end
+
     it "fails for unknown hints"
     it "fails for unsuccessful hint conversion"
   end
