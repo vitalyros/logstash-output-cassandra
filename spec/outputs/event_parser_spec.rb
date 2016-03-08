@@ -139,7 +139,15 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
   end
 
   describe "hints" do
-    it "removes fields starting with @"
+    it "removes fields starting with @" do
+      sut_instance = sut().new(default_opts.update({ "hints" => {} }))
+      sample_event["leave"] = "a_value"
+      sample_event["@remove"] = "another_value"
+      action = sut_instance.parse(sample_event)
+      expect(action["data"]["leave"]).to(eq("a_value"))
+      expect(action["data"]).not_to(include("@remove"))
+    end
+
     it "does not attempt to change items with no hints"
     it "converts items with hints"
     it "fails for unknown hints"
