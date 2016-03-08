@@ -8,7 +8,7 @@ module LogStash; module Outputs; module Cassandra
       @statement_cache = {}
       @logger = logger
       @keyspace = keyspace
-      setup_cassandra_session(logger, username, password, hosts, consistency, request_timeout, retry_policy, keyspace)
+      setup_cassandra_session(logger, username, password, hosts, consistency, request_timeout, retry_policy)
     end
 
     def submit(actions)
