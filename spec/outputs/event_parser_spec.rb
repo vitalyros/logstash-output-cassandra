@@ -27,20 +27,31 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       action = sut_instance.parse(sample_event)
       expect(action["table"]).to(eq("a_value"))
     end
-    # @table
-    # => regular table name
-    # => event table name
   end
 
-  # @filter_transform_event_key
-  # => get from event
-
   # @filter_transform
-  # => malformed
-  # => single
-  # => multiple
-  # => without type
-  # => with type
+  describe "filter transforms" do
+    describe "from config" do
+      describe "malformed configurations" do
+        it "fails if the transform has no event_data setting" do
+          expect { sut().new(default_opts.update({ "filter_transform" => [{ "column_name" => "" }] })) }.to raise_error
+        end
+
+        it "fails if the transform has no column_name setting" do
+          expect { sut().new(default_opts.update({ "filter_transform" => [{ "event_data" => "" }] })) }.to raise_error
+        end
+      end
+      # => single
+      # => multiple
+      # => without type
+      # => with type
+    end
+
+    describe "from event" do
+      # @filter_transform_event_key
+      # => get from event
+    end
+  end
 
   # @hints
   # => does nothing for none
