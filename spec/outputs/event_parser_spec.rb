@@ -17,14 +17,18 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
   describe "table name parsing" do
     it "leaves regular table names unchanged" do
       sut_instance = sut().new(default_opts.update({ "table" => "simple" }))
+
       action = sut_instance.parse(sample_event)
+
       expect(action["table"]).to(eq("simple"))
     end
 
     it "parses table names with data from the event" do
       sut_instance = sut().new(default_opts.update({ "table" => "%{[a_field]}" }))
       sample_event["a_field"] = "a_value"
+
       action = sut_instance.parse(sample_event)
+
       expect(action["table"]).to(eq("a_value"))
     end
   end
@@ -45,7 +49,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         it "maps the event key to the column" do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column" }] }))
           sample_event["a_field"] = "a_value"
+
           action = sut_instance.parse(sample_event)
+
           expect(action["data"]["a_column"]).to(eq("a_value"))
         end
 
@@ -53,7 +59,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column" }, { "event_key" => "another_field", "column_name" => "a_different_column" }] }))
           sample_event["a_field"] = "a_value"
           sample_event["another_field"] = "a_second_value"
+
           action = sut_instance.parse(sample_event)
+
           expect(action["data"]["a_column"]).to(eq("a_value"))
           expect(action["data"]["a_different_column"]).to(eq("a_second_value"))
         end
@@ -62,7 +70,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "%{[pointer_to_another_field]}", "column_name" => "a_column" }] }))
           sample_event["pointer_to_another_field"] = "another_field"
           sample_event["another_field"] = "a_value"
+
           action = sut_instance.parse(sample_event)
+
           expect(action["data"]["a_column"]).to(eq("a_value"))
         end
 
@@ -70,7 +80,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "%{[pointer_to_another_field]}" }] }))
           sample_event["a_field"] = "a_value"
           sample_event["pointer_to_another_field"] = "a_different_column"
+
           action = sut_instance.parse(sample_event)
+
           expect(action["data"]["a_different_column"]).to(eq("a_value"))
         end
 
@@ -98,7 +110,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           it "properly maps #{mapping[:name]} to #{mapping[:type]}" do
             sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => mapping[:name] }] }))
             sample_event["a_field"] = mapping[:value]
+
             action = sut_instance.parse(sample_event)
+
             expect(action["data"]["a_column"].to_s).to(eq(mapping[:value].to_s))
           end
         }
@@ -107,7 +121,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set(int)" }] }))
           original_value = [ 1, 2, 3 ]
           sample_event["a_field"] = original_value
+
           action = sut_instance.parse(sample_event)
+
           expect(action["data"]["a_column"].to_a).to(eq(original_value))
         end
 
@@ -115,13 +131,16 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "%{[pointer_to_a_field]}" }] }))
           sample_event["a_field"] = "123"
           sample_event["pointer_to_a_field"] = "int"
+
           action = sut_instance.parse(sample_event)
+
           expect(action["data"]["a_column"]).to(eq(123))
         end
 
         it "fails in case of an unknown type" do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "what?!" }] }))
           sample_event["a_field"] = "a_value"
+
           expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
         end
       end
@@ -132,7 +151,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         sut_instance = sut().new(default_opts.update({ "filter_transform_event_key" => "an_event_filter" }))
         sample_event["a_field"] = "a_value"
         sample_event["an_event_filter"] = [{ "event_key" => "a_field", "column_name" => "a_column" }]
+
         action = sut_instance.parse(sample_event)
+
         expect(action["data"]["a_column"]).to(eq("a_value"))
       end
     end
@@ -143,7 +164,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       sut_instance = sut().new(default_opts.update({ "hints" => {} }))
       sample_event["leave"] = "a_value"
       sample_event["@remove"] = "another_value"
+
       action = sut_instance.parse(sample_event)
+
       expect(action["data"]["leave"]).to(eq("a_value"))
       expect(action["data"]).not_to(include("@remove"))
     end
@@ -152,7 +175,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       sut_instance = sut().new(default_opts.update({ "hints" => {} }))
       expected_value = [ 1, 2, 3 ]
       sample_event["no_hint_here"] = expected_value
+
       action = sut_instance.parse(sample_event)
+
       expect(action["data"]["no_hint_here"]).to(equal(expected_value))
     end
 
@@ -161,7 +186,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       original_set = [ 1, 2, 3 ]
       sample_event["a_set"] = original_set
       sample_event["an_int"] = "123"
+
       action = sut_instance.parse(sample_event)
+
       expect(action["data"]["a_set"]).to(be_a(Set))
       expect(action["data"]["a_set"].to_a).to(eql(original_set))
       expect(action["data"]["an_int"]).to(eql(123))
@@ -169,14 +196,18 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
     it "fails for unknown hint types" do
       sut_instance = sut().new(default_opts.update({ "hints" => { "a_field" => "not_a_real_type" } }))
+
       sample_event["a_field"] = "a value"
+
       expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
     end
 
     it "fails for unsuccessful hint conversion" do
       options = default_opts.update({ "hints" => { "a_field" => "int" } })
       expect(options['logger']).to(receive(:error))
+
       sut_instance = sut().new(options)
+
       sample_event["a_field"] = "i am not an int!!!"
       expect { sut_instance.parse(sample_event) }.to raise_error(/Cannot convert/)
     end
