@@ -49,8 +49,6 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_column"]).to(eq("a_value"))
         end
 
-        it "transforms to the cassandra type"
-
         it "works with multiple filter transforms" do
           sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column" }, { "event_key" => "another_field", "column_name" => "a_different_column" }] }))
           sample_event["a_field"] = "a_value"
@@ -76,12 +74,37 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_different_column"]).to(eq("a_value"))
         end
 
-        it "allows for event specific cassandra types"
       end
 
       describe "cassandra type mapping" do
-        it "properly maps hints to their respective cassandra types"
+        [
+          { :name => 'timestamp', :type => ::Cassandra::Types::Timestamp, :value => Time::parse("1970-01-01 00:00:00") },
+          { :name => 'inet', :type => ::Cassandra::Types::Inet, :value => "0.0.0.0" },
+          { :name => 'float', :type => ::Cassandra::Types::Float, :value => "10.15" },
+          { :name => 'varchar', :type => ::Cassandra::Types::Varchar, :value => "a varchar" },
+          { :name => 'text', :type => ::Cassandra::Types::Text, :value => "some text" },
+          { :name => 'blob', :type => ::Cassandra::Types::Blob, :value => "12345678" },
+          { :name => 'ascii', :type => ::Cassandra::Types::Ascii, :value => "some ascii" },
+          { :name => 'bigint', :type => ::Cassandra::Types::Bigint, :value => "100" },
+          { :name => 'counter', :type => ::Cassandra::Types::Counter, :value => "15" },
+          { :name => 'int', :type => ::Cassandra::Types::Int, :value => "123" },
+          { :name => 'varint', :type => ::Cassandra::Types::Varint, :value => "345" },
+          { :name => 'boolean', :type => ::Cassandra::Types::Boolean, :value => "true" },
+          { :name => 'decimal', :type => ::Cassandra::Types::Decimal, :value => "0.12E2" },
+          { :name => 'double', :type => ::Cassandra::Types::Double, :value => "123.65" },
+          { :name => 'timeuuid', :type => ::Cassandra::Types::Timeuuid, :value => "00000000-0000-0000-0000-000000000000" }
+        ].each { |mapping|
+          # NOTE: this is not the best test there is, but it is the best / simplest I could think of :/
+          it "properly maps #{mapping[:name]} to #{mapping[:type]}" do
+            sut_instance = sut().new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => mapping[:name] }] }))
+            sample_event["a_field"] = mapping[:value]
+            action = sut_instance.parse(sample_event)
+            expect(action["data"]["a_column"].to_s).to(eq(mapping[:value].to_s))
+          end
+        }
+
         it "properly maps sets to their specific set types"
+        it "allows for event specific cassandra types"
       end
     end
 

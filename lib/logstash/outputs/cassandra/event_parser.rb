@@ -83,7 +83,7 @@ module LogStash; module Outputs; module Cassandra
           case event_data
             when 'int', 'varint', 'bigint', 'double', 'decimal', 'counter'
               typed_event_data = 0
-            when 'uuid', 'timeuuid'
+            when 'timeuuid'
               typed_event_data = generator.new("00000000-0000-0000-0000-000000000000")
             when 'timestamp'
               typed_event_data = generator.new(Time::parse("1970-01-01 00:00:00"))
@@ -111,38 +111,36 @@ module LogStash; module Outputs; module Cassandra
 
     def get_cassandra_type_generator(name)
       case name
-        when 'uuid'
-          return Cassandra::Types::Uuid
         when 'timestamp'
-          return Cassandra::Types::Timestamp
+          return ::Cassandra::Types::Timestamp
         when 'inet'
-          return Cassandra::Types::Inet
+          return ::Cassandra::Types::Inet
         when 'float'
-          return Cassandra::Types::Float
+          return ::Cassandra::Types::Float
         when 'varchar'
-          return Cassandra::Types::Varchar
+          return ::Cassandra::Types::Varchar
         when 'text'
-          return Cassandra::Types::Text
+          return ::Cassandra::Types::Text
         when 'blob'
-          return Cassandra::Types::Blog
+          return ::Cassandra::Types::Blob
         when 'ascii'
-          return Cassandra::Types::Ascii
+          return ::Cassandra::Types::Ascii
         when 'bigint'
-          return Cassandra::Types::Bigint
+          return ::Cassandra::Types::Bigint
         when 'counter'
-          return Cassandra::Types::Counter
+          return ::Cassandra::Types::Counter
         when 'int'
-          return Cassandra::Types::Int
+          return ::Cassandra::Types::Int
         when 'varint'
-          return Cassandra::Types::Varint
+          return ::Cassandra::Types::Varint
         when 'boolean'
-          return Cassandra::Types::Boolean
+          return ::Cassandra::Types::Boolean
         when 'decimal'
-          return Cassandra::Types::Decimal
+          return ::Cassandra::Types::Decimal
         when 'double'
-          return Cassandra::Types::Double
+          return ::Cassandra::Types::Double
         when 'timeuuid'
-          return Cassandra::Types::Timeuuid
+          return ::Cassandra::Types::Timeuuid
         when /^set\((.*)\)$/
           set_type = get_cassandra_type_generator($1)
           return Cassandra::Types::Set(set_type)
