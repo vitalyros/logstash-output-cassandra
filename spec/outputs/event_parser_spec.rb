@@ -148,7 +148,14 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       expect(action["data"]).not_to(include("@remove"))
     end
 
-    it "does not attempt to change items with no hints"
+    it "does not attempt to change items with no hints" do
+      sut_instance = sut().new(default_opts.update({ "hints" => {} }))
+      expected_value = [ 1, 2, 3 ]
+      sample_event["no_hint_here"] = expected_value
+      action = sut_instance.parse(sample_event)
+      expect(action["data"]["no_hint_here"]).to(equal(expected_value))
+    end
+
     it "converts items with hints"
     it "fails for unknown hints"
     it "fails for unsuccessful hint conversion"
