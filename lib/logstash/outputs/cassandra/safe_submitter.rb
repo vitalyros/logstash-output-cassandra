@@ -15,9 +15,8 @@ module LogStash; module Outputs; module Cassandra
       begin
         batch = prepare_batch(actions)
         @session.execute(batch)
-        @logger.info("Batch sent successfully")
       rescue Exception => e
-        @logger.warn("Failed to send batch (error: #{e.to_s}).")
+        @logger.error("Failed to send batch to cassandra", :exception => e, :backtrace => e.backtrace)
       end
     end
 
