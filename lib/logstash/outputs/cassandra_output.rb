@@ -16,7 +16,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   config :hosts, :validate => :array, :required => true
 
   # The port cassandra is listening to
-  config :hosts, :validate => :integer, :default => 9042, :required => true
+  config :port, :validate => :number, :default => 9042, :required => true
 
   # Cassandra consistency level.
   # Options: "any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one"
@@ -123,6 +123,10 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
     @buffer.stop()
   end
 
+  def flush
+    @buffer.flush()
+  end
+
   private
   def setup_event_parser()
     @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
@@ -134,7 +138,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
 
   def setup_safe_submitter()
     @safe_submitter = ::LogStash::Outputs::Cassandra::SafeSubmitter.new(
-      "logger" => @logger, "cassandra" => ::Cassandra.cluster,
+      "logger" => @logger, "cassandra" => ::Cassandra,
       "hosts" => @hosts, "port" => @port, "username" => @username, "password" => @password,
       "consistency" => @consistency, "request_timeout" => @request_timeout, "retry_policy" => @retry_policy,
       "keyspace" => @keyspace
