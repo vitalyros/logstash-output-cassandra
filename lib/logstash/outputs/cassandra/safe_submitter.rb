@@ -6,7 +6,6 @@ module LogStash; module Outputs; module Cassandra
     def initialize(options)
       @statement_cache = {}
       @logger = options["logger"]
-      @keyspace = options["keyspace"]
       setup_cassandra_session(options)
     end
 
@@ -31,7 +30,7 @@ module LogStash; module Outputs; module Cassandra
         retry_policy: get_retry_policy(options["retry_policy"]),
         logger: options["logger"]
       )
-      @session = cluster.connect(@keyspace)
+      @session = cluster.connect(options["keyspace"])
     end
 
     def get_retry_policy(policy_name)
@@ -49,7 +48,7 @@ module LogStash; module Outputs; module Cassandra
       statement_and_values = []
       for action in actions
         query =
-"INSERT INTO #{@keyspace}.#{action["table"]} (#{action["data"].keys.join(', ')})
+"INSERT INTO #{action["table"]} (#{action["data"].keys.join(', ')})
 VALUES (#{("?" * action["data"].keys.count).split(//) * ", "})"
 
         if !@statement_cache.has_key?(query)

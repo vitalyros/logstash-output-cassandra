@@ -6,24 +6,35 @@ describe "client create actions", :integration => true do
   before(:all) do
     get_session().execute("CREATE KEYSPACE test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
     get_session().execute("
-      CREATE TABLE test.first(
-        text_column     text,
-        timeuuid_column timeuuid,
-        int_column      int,
-        PRIMARY KEY     (text_column)
+      CREATE TABLE test.simple(
+        text_column      text,
+        int_column       int,
+        PRIMARY KEY      (text_column)
       );")
     get_session().execute("
-      CREATE TABLE test.second(
-        text_column     text,
-        timeuuid_column timeuuid,
-        int_column      int,
-        PRIMARY KEY     (text_column)
+      CREATE TABLE test.complex(
+        timestamp_column timestamp,
+        inet_column      inet,
+        float_column     float,
+        varchar_column   varchar,
+        text_column      text,
+        blob_column      blob,
+        ascii_column     ascii,
+        bigint_column    bigint,
+        int_column       int,
+        varint_column    varint,
+        boolean_column   boolean,
+        decimal_column   decimal,
+        double_column    double,
+        timeuuid_column  timeuuid,
+        set_column       set<timeuuid>,
+        PRIMARY KEY      (text_column)
       );")
   end
 
   before(:each) do
-    get_session().execute("TRUNCATE test.first")
-    get_session().execute("TRUNCATE test.second")
+    get_session().execute("TRUNCATE test.simple")
+    get_session().execute("TRUNCATE test.complex")
   end
 
   def get_sut()
@@ -40,26 +51,28 @@ describe "client create actions", :integration => true do
     return sut
   end
 
-  # TODO: add integration tests here (docker, longhorseman, et al)
-  # pushing a single event
-  # pushing a set of events
-  # pushing to a few tables
   it "properly creates a single event" do
     sut = get_sut()
     sut.register()
     sut.receive(LogStash::Event.new(
         "text_field" => "some text",
-        "timeuuid_field" => "00000000-0000-0000-0000-000000000000",
         "int_field" => "345",
-        "cassandra_table" => "first",
+        "cassandra_table" => "simple",
         "cassandra_filter" => [
-          { "event_key" => "text_field",     "column_name" => "text_column" },
-          { "event_key" => "timeuuid_field", "column_name" => "timeuuid_column", "cassandra_type" => "timeuuid" },
-          { "event_key" => "int_field",      "column_name" => "int_column", "cassandra_type" => "int" }
+          { "event_key" => "text_field", "column_name" => "text_column" },
+          { "event_key" => "int_field", "column_name" => "int_column", "cassandra_type" => "int" }
     ] ))
     sut.flush()
 
-    result = get_session().execute("SELECT * FROM test.first")
-    print 'done'
+    result = get_session().execute("SELECT * FROM test.simple")
+    expect(result.size).to((eq(1)))
+    result.each { |row|
+      expect(row["text_column"]).to(eq("some text"))
+      expect(row["int_column"]).to(eq(345))
+    }
   end
+
+  it "properly creates all column types"
+  it "properly works with counter columns"
+  it "properly adds multiple events to multiple tables in the same batch"
 end
