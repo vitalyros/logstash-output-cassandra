@@ -25,6 +25,7 @@ module LogStash; module Outputs; module Cassandra
         username: options["username"],
         password: options["password"],
         hosts: options["hosts"],
+        port: options["port"],
         consistency: options["consistency"].to_sym,
         timeout: options["request_timeout"],
         retry_policy: get_retry_policy(options["retry_policy"]),

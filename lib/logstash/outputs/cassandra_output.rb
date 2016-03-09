@@ -15,6 +15,9 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # List of Cassandra hostname(s) or IP-address(es)
   config :hosts, :validate => :array, :required => true
 
+  # The port cassandra is listening to
+  config :hosts, :validate => :integer, :default => 9042, :required => true
+
   # Cassandra consistency level.
   # Options: "any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one"
   # Default: "one"
@@ -123,17 +126,18 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   private
   def setup_event_parser()
     @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
-      :logger => @logger, :table => @table,
-      :filter_transform_event_key => @filter_transform_event_key, :filter_transform => @filter_transform,
-      :hints => @hints, :ignore_bad_values => @ignore_bad_values
+      "logger" => @logger, "table" => @table,
+      "filter_transform_event_key" => @filter_transform_event_key, "filter_transform" => @filter_transform,
+      "hints" => @hints, "ignore_bad_values" => @ignore_bad_values
     )
   end
 
   def setup_safe_submitter()
     @safe_submitter = ::LogStash::Outputs::Cassandra::SafeSubmitter.new(
-      :logger => @logger, :username => @username, :password => @password, :hosts => @hosts,
-      :consistency => @consistency, :request_timeout => @request_timeout, :retry_policy => @retry_policy,
-      :keyspace => @keyspace
+      "logger" => @logger, "cassandra" => ::Cassandra.cluster,
+      "hosts" => @hosts, "port" => @port, "username" => @username, "password" => @password,
+      "consistency" => @consistency, "request_timeout" => @request_timeout, "retry_policy" => @retry_policy,
+      "keyspace" => @keyspace
     )
   end
 
