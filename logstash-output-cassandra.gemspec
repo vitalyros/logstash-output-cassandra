@@ -23,5 +23,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "logstash-core", '>= 2.0.0', '< 3.0.0'
   s.add_runtime_dependency 'cassandra-driver', '>= 2.0.0', '< 3.0.0'
   s.add_development_dependency 'cabin', ['~> 0.6']
+  s.add_development_dependency 'longshoreman'
   s.add_development_dependency 'logstash-devutils'
 end
