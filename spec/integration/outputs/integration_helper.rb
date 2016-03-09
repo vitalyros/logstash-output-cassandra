@@ -52,19 +52,21 @@ RSpec.configure do |config|
         })
         connect_retry = 0
         begin
-          sleep(1)
           get_session()
         rescue ::Cassandra::Errors::NoHostsAvailable
+          # retry connecting for a minute
           connect_retry += 1
           if connect_retry <= 60
+            sleep(1)
             retry
           else
             raise
           end
         end
       rescue Docker::Error::NotFoundError
+        # try to pull the image once if it does not exist
         create_retry += 1
-        if create_retry <= 2
+        if create_retry <= 1
           Longshoreman.pull_image(CONTAINER_IMAGE, CONTAINER_TAG)
           retry
         else
