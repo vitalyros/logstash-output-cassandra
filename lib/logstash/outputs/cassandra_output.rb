@@ -123,18 +123,22 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   private
   def setup_event_parser()
     @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
-      @logger, @table, @filter_transform_event_key, @filter_transform, @hints, @ignore_bad_values
+      :logger => @logger, :table => @table,
+      :filter_transform_event_key => @filter_transform_event_key, :filter_transform => @filter_transform,
+      :hints => @hints, :ignore_bad_values => @ignore_bad_values
     )
   end
 
   def setup_safe_submitter()
     @safe_submitter = ::LogStash::Outputs::Cassandra::SafeSubmitter.new(
-      @logger, @username, @password, @hosts, @consistency, @request_timeout, @retry_policy, @keyspace
+      :logger => @logger, :username => @username, :password => @password, :hosts => @hosts,
+      :consistency => @consistency, :request_timeout => @request_timeout, :retry_policy => @retry_policy,
+      :keyspace => @keyspace
     )
   end
 
   def setup_buffer_and_handler
-    @buffer = ::LogStash::Outputs::CassandraOutput::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
+    @buffer = ::LogStash::Outputs::Cassandra::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
       @safe_submitter.submit(actions)
     end
   end
