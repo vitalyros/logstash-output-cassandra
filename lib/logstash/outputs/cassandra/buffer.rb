@@ -1,4 +1,4 @@
-require 'concurrent'
+require "concurrent"
 java_import java.util.concurrent.locks.ReentrantLock
 
 module LogStash; module Outputs; module Cassandra

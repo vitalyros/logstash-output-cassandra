@@ -5,12 +5,12 @@ require "logstash/outputs/cassandra/event_parser"
 RSpec.describe LogStash::Outputs::Cassandra::EventParser do
   let(:sut) { LogStash::Outputs::Cassandra::EventParser }
   let(:default_opts) {{
-    'logger' => double(),
-    'table' => 'dummy',
-    'filter_transform_event_key' => nil,
-    'filter_transform' => nil,
-    'hints' => {},
-    'ignore_bad_values' => false
+    "logger" => double(),
+    "table" => 'dummy',
+    "filter_transform_event_key" => nil,
+    "filter_transform" => nil,
+    "hints" => {},
+    "ignore_bad_values" => false
   }}
   let(:sample_event) { LogStash::Event.new("message" => "sample message here") }
 

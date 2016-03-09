@@ -6,13 +6,13 @@ require "cassandra"
 module LogStash; module Outputs; module Cassandra
   class EventParser
     def initialize(opts)
-      @logger = opts['logger']
-      @table = opts['table']
-      @filter_transform_event_key = opts['filter_transform_event_key']
-      assert_filter_transform_structure(opts['filter_transform']) if opts['filter_transform']
-      @filter_transform = opts['filter_transform']
-      @hints = opts['hints']
-      @ignore_bad_values = opts['ignore_bad_values']
+      @logger = opts["logger"]
+      @table = opts["table"]
+      @filter_transform_event_key = opts["filter_transform_event_key"]
+      assert_filter_transform_structure(opts["filter_transform"]) if opts["filter_transform"]
+      @filter_transform = opts["filter_transform"]
+      @hints = opts["hints"]
+      @ignore_bad_values = opts["ignore_bad_values"]
     end
 
     def parse(event)
@@ -81,15 +81,15 @@ module LogStash; module Outputs; module Cassandra
         error_message = "Cannot convert `value (`#{event_data}`) to `#{cassandra_type}` type"
         if @ignore_bad_values
           case cassandra_type
-            when 'int', 'varint', 'bigint', 'double', 'counter'
+            when "int", "varint", "bigint", "double", "counter"
               typed_event_data = 0
-            when 'timeuuid'
+            when "timeuuid"
               typed_event_data = generator.new("00000000-0000-0000-0000-000000000000")
-            when 'timestamp'
+            when "timestamp"
               typed_event_data = generator.new(Time::parse("1970-01-01 00:00:00"))
-            when 'inet'
+            when "inet"
               typed_event_data = generator.new("0.0.0.0")
-            when 'float'
+            when "float"
               typed_event_data = generator.new(0)
             when /^set\((.*)\)$/
               typed_event_data = generator.new([])
@@ -105,35 +105,35 @@ module LogStash; module Outputs; module Cassandra
 
     def get_cassandra_type_generator(name)
       case name
-        when 'timestamp'
+        when "timestamp"
           return ::Cassandra::Types::Timestamp
-        when 'inet'
+        when "inet"
           return ::Cassandra::Types::Inet
-        when 'float'
+        when "float"
           return ::Cassandra::Types::Float
-        when 'varchar'
+        when "varchar"
           return ::Cassandra::Types::Varchar
-        when 'text'
+        when "text"
           return ::Cassandra::Types::Text
-        when 'blob'
+        when "blob"
           return ::Cassandra::Types::Blob
-        when 'ascii'
+        when "ascii"
           return ::Cassandra::Types::Ascii
-        when 'bigint'
+        when "bigint"
           return ::Cassandra::Types::Bigint
-        when 'counter'
+        when "counter"
           return ::Cassandra::Types::Counter
-        when 'int'
+        when "int"
           return ::Cassandra::Types::Int
-        when 'varint'
+        when "varint"
           return ::Cassandra::Types::Varint
-        when 'boolean'
+        when "boolean"
           return ::Cassandra::Types::Boolean
-        when 'decimal'
+        when "decimal"
           return ::Cassandra::Types::Decimal
-        when 'double'
+        when "double"
           return ::Cassandra::Types::Double
-        when 'timeuuid'
+        when "timeuuid"
           return ::Cassandra::Types::Timeuuid
         when /^set\((.*)\)$/
           set_type = get_cassandra_type_generator($1)
