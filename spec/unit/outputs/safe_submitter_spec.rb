@@ -39,7 +39,18 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       sut.new(default_options)
     end
 
-    it "supports the ... retry policy by passing ... as the retry_policy"
+    [
+        { :name => "default",                 :concrete_retry_policy => ::Cassandra::Retry::Policies::Default },
+        { :name => "downgrading_consistency", :concrete_retry_policy => ::Cassandra::Retry::Policies::DowngradingConsistency },
+        { :name => "failthrough",             :concrete_retry_policy => ::Cassandra::Retry::Policies::Fallthrough }
+    ].each { |mapping|
+      it "supports the #{mapping["class"]} retry policy by passing #{mapping["name"]} as the retry_policy" do
+        options = default_options.update({ "retry_policy" => mapping[:name], "concrete_retry_policy" => mapping[:concrete_retry_policy] })
+        setup_cassandra_double(options)
+
+        sut.new(options)
+      end
+    }
   end
 
   describe "execution" do
