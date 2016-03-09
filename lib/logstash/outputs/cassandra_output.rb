@@ -4,6 +4,7 @@ require "logstash/namespace"
 require "logstash/outputs/cassandra/buffer"
 require "logstash/outputs/cassandra/event_parser"
 require "logstash/outputs/cassandra/safe_submitter"
+require "cassandra"
 
 class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
 

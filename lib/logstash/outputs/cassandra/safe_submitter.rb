@@ -1,14 +1,13 @@
 # encoding: utf-8
 require "cassandra"
 
-
 module LogStash; module Outputs; module Cassandra
   class SafeSubmitter
-    def initialize(logger, username, password, hosts, consistency, request_timeout, retry_policy, keyspace)
+    def initialize(options)
       @statement_cache = {}
-      @logger = logger
-      @keyspace = keyspace
-      setup_cassandra_session(logger, username, password, hosts, consistency, request_timeout, retry_policy)
+      @logger = options["logger"]
+      @keyspace = options["keyspace"]
+      setup_cassandra_session(options)
     end
 
     def submit(actions)
@@ -21,19 +20,17 @@ module LogStash; module Outputs; module Cassandra
     end
 
     private
-    def setup_cassandra_session(logger, username, password, hosts, consistency, request_timeout, retry_policy)
-      cluster = ::Cassandra.cluster(
-        username: username,
-        password: password,
-        hosts: hosts,
-        consistency: consistency.to_sym,
-        timeout: request_timeout,
-        retry_policy: get_retry_policy(retry_policy),
-        logger: logger
+    def setup_cassandra_session(options)
+      cluster = options["cassandra"].cluster(
+        username: options["username"],
+        password: options["password"],
+        hosts: options["hosts"],
+        consistency: options["consistency"].to_sym,
+        timeout: options["request_timeout"],
+        retry_policy: get_retry_policy(options["retry_policy"]),
+        logger: options["logger"]
       )
       @session = cluster.connect(@keyspace)
-      @logger.info("New cassandra session created",
-                   :username => username, :hosts => hosts, :keyspace => @keyspace)
     end
 
     def get_retry_policy(policy_name)
