@@ -2,7 +2,6 @@
 require "time"
 require "cassandra"
 
-
 module LogStash; module Outputs; module Cassandra
   class EventParser
     def initialize(options)

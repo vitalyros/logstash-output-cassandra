@@ -1,3 +1,4 @@
+# encoding: utf-8
 require "concurrent"
 java_import java.util.concurrent.locks.ReentrantLock
 

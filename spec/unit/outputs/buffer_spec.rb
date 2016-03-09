@@ -1,3 +1,4 @@
+# encoding: utf-8
 require "logstash/outputs/cassandra/buffer"
 require "cabin"
 
