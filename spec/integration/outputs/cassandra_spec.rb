@@ -3,38 +3,12 @@ require_relative "./integration_helper"
 require "logstash/outputs/cassandra_output"
 
 describe "client create actions", :integration => true do
-  before(:all) do
+  before(:each) do
     get_session().execute("CREATE KEYSPACE test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
-    get_session().execute("
-      CREATE TABLE test.simple(
-        text_column      text,
-        int_column       int,
-        PRIMARY KEY      (text_column)
-      );")
-    get_session().execute("
-      CREATE TABLE test.complex(
-        timestamp_column timestamp,
-        inet_column      inet,
-        float_column     float,
-        varchar_column   varchar,
-        text_column      text,
-        blob_column      blob,
-        ascii_column     ascii,
-        bigint_column    bigint,
-        int_column       int,
-        varint_column    varint,
-        boolean_column   boolean,
-        decimal_column   decimal,
-        double_column    double,
-        timeuuid_column  timeuuid,
-        set_column       set<timeuuid>,
-        PRIMARY KEY      (text_column)
-      );")
   end
 
-  before(:each) do
-    get_session().execute("TRUNCATE test.simple")
-    get_session().execute("TRUNCATE test.complex")
+  after(:each) do
+    get_session().execute("DROP KEYSPACE test;")
   end
 
   def get_sut()
@@ -50,29 +24,69 @@ describe "client create actions", :integration => true do
     sut = LogStash::Outputs::CassandraOutput.new(options)
     return sut
   end
+  
+  def create_table(type_to_test)
+    get_session().execute("
+      CREATE TABLE test.simple(
+        idish_column text,
+        value_column #{type_to_test[:type]},
+        PRIMARY KEY  (idish_column)
+      );")
+  end
 
-  it "properly creates a single event" do
-    sut = get_sut()
-    sut.register()
-    sut.receive(LogStash::Event.new(
-        "text_field" => "some text",
-        "int_field" => "345",
+  def build_event(type_to_test)
+    options = {
         "cassandra_table" => "simple",
+        "idish_field" => "some text",
+        "value_field" => type_to_test[:value],
         "cassandra_filter" => [
-          { "event_key" => "text_field", "column_name" => "text_column" },
-          { "event_key" => "int_field", "column_name" => "int_column", "cassandra_type" => "int" }
-    ] ))
-    sut.flush()
-
+            { "event_key" => "idish_field", "column_name" => "idish_column" },
+            { "event_key" => "value_field", "column_name" => "value_column", "cassandra_type" => type_to_test[:type] }
+        ]
+    }
+    event = LogStash::Event.new(options)
+    return event
+  end
+  
+  def assert_proper_insert(type_to_test)
     result = get_session().execute("SELECT * FROM test.simple")
     expect(result.size).to((eq(1)))
     result.each { |row|
-      expect(row["text_column"]).to(eq("some text"))
-      expect(row["int_column"]).to(eq(345))
+      expect(row["idish_column"]).to(eq("some text"))
+      expect(row["value_column"].to_s).to(eq(type_to_test[:value].to_s))
     }
   end
 
-  it "properly creates all column types"
+  [
+      { type: "timestamp", value: 1457606758 },
+      { type: "inet", value: "192.168.99.100" },
+      { type: "float", value: "10.050000190734863" },
+      { type: "varchar", value: "some chars" },
+      { type: "text", value: "some text" },
+      { type: "blob", value: "a blob" },
+      { type: "ascii", value: "some ascii" },
+      { type: "bigint", value: "123456789" },
+      { type: "int", value: "12345" },
+      { type: "varint", value: "12345678" },
+      { type: "boolean", value: "true" },
+      { type: "decimal", value: "0.1015E2" },
+      { type: "double", value: "200.54" },
+      { type: "timeuuid", value: "d2177dd0-eaa2-11de-a572-001b779c76e3" },
+      { type: "set<timeuuid>", value: ["d2177dd0-eaa2-11de-a572-001b779c76e3", "d2177dd0-eaa2-11de-a572-001b779c76e3", "d2177dd0-eaa2-11de-a572-001b779c76e3"] }
+  ].each { |type_to_test|
+    it "properly inserts data of type #{type_to_test[:type]}" do
+      create_table(type_to_test)
+      sut = get_sut()
+      sut.register()
+      event = build_event(type_to_test)
+      
+      sut.receive(event)
+      sut.flush()
+
+      assert_proper_insert(type_to_test)
+    end
+  }
+
   it "properly works with counter columns"
   it "properly adds multiple events to multiple tables in the same batch"
 end
