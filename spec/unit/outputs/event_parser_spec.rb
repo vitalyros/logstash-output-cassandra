@@ -91,6 +91,8 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       describe "cassandra type mapping" do
         [
           { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => Time::parse("1970-01-01 00:00:00") },
+          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => "1970-01-01 00:00:00" },
+          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => 1457606758 },
           { :name => "inet",      :type => ::Cassandra::Types::Inet,      :value => "0.0.0.0" },
           { :name => "float",     :type => ::Cassandra::Types::Float,     :value => "10.15" },
           { :name => "varchar",   :type => ::Cassandra::Types::Varchar,   :value => "a varchar" },
@@ -120,6 +122,16 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         it "properly maps sets to their specific set types" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set<int>" }] }))
           original_value = [ 1, 2, 3 ]
+          sample_event["a_field"] = original_value
+
+          action = sut_instance.parse(sample_event)
+
+          expect(action["data"]["a_column"].to_a).to(eq(original_value))
+        end
+
+        it "properly maps sets to their specific set types for type which also require actual conversion" do
+          sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set<timeuuid>" }] }))
+          original_value = [ "00000000-0000-0000-0000-000000000000", "00000000-0000-0000-0000-000000000000", "00000000-0000-0000-0000-000000000000" ]
           sample_event["a_field"] = original_value
 
           action = sut_instance.parse(sample_event)
