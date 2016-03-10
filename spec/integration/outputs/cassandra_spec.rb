@@ -2,6 +2,25 @@
 require_relative "./integration_helper"
 require "logstash/outputs/cassandra_output"
 
+module Helper
+  def self.get_assert_timestamp_equallity()
+    Proc.new do |expect, row, type_to_test|
+      expect.call(row["value_column"].to_s).to(eq(Time.at(type_to_test[:value]).to_s))
+    end
+  end
+
+  def self.get_assert_set_equallity()
+    Proc.new do |expect, row, type_to_test|
+      set_from_cassandra = row["value_column"]
+      original_value = type_to_test[:value]
+      expect.call(set_from_cassandra.size).to(eq(original_value.size))
+      set_from_cassandra.to_a.each { |item|
+        expect.call(original_value).to(include(item.to_s))
+      }
+    end
+  end
+end
+
 describe "client create actions", :integration => true do
   before(:each) do
     get_session().execute("CREATE KEYSPACE test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
@@ -53,12 +72,19 @@ describe "client create actions", :integration => true do
     expect(result.size).to((eq(1)))
     result.each { |row|
       expect(row["idish_column"]).to(eq("some text"))
-      expect(row["value_column"].to_s).to(eq(type_to_test[:value].to_s))
+      if type_to_test.has_key?(:assert_override)
+        expect_proc = Proc.new do |value|
+            return expect(value)
+        end
+        type_to_test[:assert_override].call(expect_proc, row, type_to_test)
+      else
+        expect(row["value_column"].to_s).to(eq(type_to_test[:value].to_s))
+      end
     }
   end
 
   [
-      { type: "timestamp", value: 1457606758 },
+      { type: "timestamp", value: 1457606758, assert_override: Helper::get_assert_timestamp_equallity() },
       { type: "inet", value: "192.168.99.100" },
       { type: "float", value: "10.050000190734863" },
       { type: "varchar", value: "some chars" },
@@ -72,7 +98,8 @@ describe "client create actions", :integration => true do
       { type: "decimal", value: "0.1015E2" },
       { type: "double", value: "200.54" },
       { type: "timeuuid", value: "d2177dd0-eaa2-11de-a572-001b779c76e3" },
-      { type: "set<timeuuid>", value: ["d2177dd0-eaa2-11de-a572-001b779c76e3", "d2177dd0-eaa2-11de-a572-001b779c76e3", "d2177dd0-eaa2-11de-a572-001b779c76e3"] }
+      { type: "set<timeuuid>",
+        value: ["d2177dd0-eaa2-11de-a572-001b779c76e3", "d2177dd0-eaa2-11de-a572-001b779c76e4", "d2177dd0-eaa2-11de-a572-001b779c76e5"], assert_override: Helper::get_assert_set_equallity() }
   ].each { |type_to_test|
     it "properly inserts data of type #{type_to_test[:type]}" do
       create_table(type_to_test)

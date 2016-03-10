@@ -54,7 +54,7 @@ module LogStash; module Outputs; module Cassandra
       event_data = event[event.sprintf(filter["event_key"])]
       if filter.has_key?("cassandra_type")
         cassandra_type = event.sprintf(filter["cassandra_type"])
-        event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
+        event_data = convert_value_to_cassandra_type_or_default_if_configured(event_data, cassandra_type)
       end
       column_name = event.sprintf(filter["column_name"])
       action["data"][column_name] = event_data
@@ -66,32 +66,27 @@ module LogStash; module Outputs; module Cassandra
       action["data"].reject!{|key| %r{^@} =~ key}
       @hints.each do |event_key, cassandra_type|
         if action["data"].has_key?(event_key)
-          action["data"][event_key] = convert_value_to_cassandra_type(action["data"][event_key], cassandra_type)
+          action["data"][event_key] = convert_value_to_cassandra_type_or_default_if_configured(action["data"][event_key], cassandra_type)
         end
       end
     end
 
-    def convert_value_to_cassandra_type(event_data, cassandra_type)
-      generator = get_cassandra_type_generator(cassandra_type)
+    def convert_value_to_cassandra_type_or_default_if_configured(event_data, cassandra_type)
       typed_event_data = nil
       begin
-        typed_event_data = generator.new(event_data)
+        typed_event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
       rescue Exception => e
         error_message = "Cannot convert `value (`#{event_data}`) to `#{cassandra_type}` type"
         if @ignore_bad_values
           case cassandra_type
-            when "int", "varint", "bigint", "double", "counter"
-              typed_event_data = 0
+            when "float", "int", "varint", "bigint", "double", "counter", "timestamp"
+              typed_event_data = convert_value_to_cassandra_type(0, cassandra_type)
             when "timeuuid"
-              typed_event_data = generator.new("00000000-0000-0000-0000-000000000000")
-            when "timestamp"
-              typed_event_data = generator.new(Time::parse("1970-01-01 00:00:00"))
+              typed_event_data = convert_value_to_cassandra_type("00000000-0000-0000-0000-000000000000", cassandra_type)
             when "inet"
-              typed_event_data = generator.new("0.0.0.0")
-            when "float"
-              typed_event_data = generator.new(0)
+              typed_event_data = convert_value_to_cassandra_type("0.0.0.0", cassandra_type)
             when /^set\((.*)\)$/
-              typed_event_data = generator.new([])
+              typed_event_data = convert_value_to_cassandra_type([], cassandra_type)
           end
           @logger.warn(error_message, :exception => e, :backtrace => e.backtrace)
         else
@@ -102,41 +97,54 @@ module LogStash; module Outputs; module Cassandra
       return typed_event_data
     end
 
-    def get_cassandra_type_generator(name)
-      case name
+    def convert_value_to_cassandra_type(event_data, cassandra_type)
+      case cassandra_type
         when "timestamp"
-          return ::Cassandra::Types::Timestamp
+          converted_value = event_data
+          if converted_value.is_a?(Numeric)
+            converted_value = Time.at(converted_value)
+          elsif converted_value.respond_to?(:to_s)
+            converted_value = Time::parse(event_data.to_s)
+          end
+          return ::Cassandra::Types::Timestamp.new(converted_value)
         when "inet"
-          return ::Cassandra::Types::Inet
+          return ::Cassandra::Types::Inet.new(event_data)
         when "float"
-          return ::Cassandra::Types::Float
+          return ::Cassandra::Types::Float.new(event_data)
         when "varchar"
-          return ::Cassandra::Types::Varchar
+          return ::Cassandra::Types::Varchar.new(event_data)
         when "text"
-          return ::Cassandra::Types::Text
+          return ::Cassandra::Types::Text.new(event_data)
         when "blob"
-          return ::Cassandra::Types::Blob
+          return ::Cassandra::Types::Blob.new(event_data)
         when "ascii"
-          return ::Cassandra::Types::Ascii
+          return ::Cassandra::Types::Ascii.new(event_data)
         when "bigint"
-          return ::Cassandra::Types::Bigint
+          return ::Cassandra::Types::Bigint.new(event_data)
         when "counter"
-          return ::Cassandra::Types::Counter
+          return ::Cassandra::Types::Counter.new(event_data)
         when "int"
-          return ::Cassandra::Types::Int
+          return ::Cassandra::Types::Int.new(event_data)
         when "varint"
-          return ::Cassandra::Types::Varint
+          return ::Cassandra::Types::Varint.new(event_data)
         when "boolean"
-          return ::Cassandra::Types::Boolean
+          return ::Cassandra::Types::Boolean.new(event_data)
         when "decimal"
-          return ::Cassandra::Types::Decimal
+          return ::Cassandra::Types::Decimal.new(event_data)
         when "double"
-          return ::Cassandra::Types::Double
+          return ::Cassandra::Types::Double.new(event_data)
         when "timeuuid"
-          return ::Cassandra::Types::Timeuuid
+          return ::Cassandra::Types::Timeuuid.new(event_data)
         when /^set<(.*)>$/
-          set_type = get_cassandra_type_generator($1)
-          return ::Cassandra::Types::Set.new(set_type)
+          # convert each value
+          # then add all to an array and convert to set
+          converted_items = ::Set.new()
+          set_type = $1
+          event_data.each { |item|
+            converted_item = convert_value_to_cassandra_type(item, set_type)
+            converted_items.add(converted_item)
+          }
+          return converted_items
         else
           raise "Unknown cassandra_type #{name}"
       end

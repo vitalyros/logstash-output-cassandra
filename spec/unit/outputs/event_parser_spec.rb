@@ -90,9 +90,9 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
       describe "cassandra type mapping" do
         [
-          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => Time::parse("1970-01-01 00:00:00") },
-          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => "1970-01-01 00:00:00" },
-          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => 1457606758 },
+          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => Time::parse("1979-07-27 00:00:00 +0300") },
+          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => "1982-05-04 00:00:00 +0300", expected: Time::parse("1982-05-04 00:00:00 +0300") },
+          { :name => "timestamp", :type => ::Cassandra::Types::Timestamp, :value => 1457606758, expected: Time.at(1457606758) },
           { :name => "inet",      :type => ::Cassandra::Types::Inet,      :value => "0.0.0.0" },
           { :name => "float",     :type => ::Cassandra::Types::Float,     :value => "10.15" },
           { :name => "varchar",   :type => ::Cassandra::Types::Varchar,   :value => "a varchar" },
@@ -115,7 +115,8 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
             action = sut_instance.parse(sample_event)
 
-            expect(action["data"]["a_column"].to_s).to(eq(mapping[:value].to_s))
+            expected_value = mapping.has_key?(:expected) ? mapping[:expected] : mapping[:value]
+            expect(action["data"]["a_column"].to_s).to(eq(expected_value.to_s))
           end
         }
 
@@ -131,12 +132,15 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
         it "properly maps sets to their specific set types for type which also require actual conversion" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set<timeuuid>" }] }))
-          original_value = [ "00000000-0000-0000-0000-000000000000", "00000000-0000-0000-0000-000000000000", "00000000-0000-0000-0000-000000000000" ]
+          original_value = [ "00000000-0000-0000-0000-000000000000", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002" ]
           sample_event["a_field"] = original_value
 
           action = sut_instance.parse(sample_event)
 
-          expect(action["data"]["a_column"].to_a).to(eq(original_value))
+          expect(action["data"]["a_column"].size).to(eq(original_value.size))
+          action["data"]["a_column"].to_a.each { |item|
+            expect(original_value).to(include(item.to_s))
+          }
         end
 
         it "allows for event specific cassandra types" do
@@ -150,10 +154,12 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         end
 
         it "fails in case of an unknown type" do
-          sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "what?!" }] }))
+          options = default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "what?!" }] })
+          sut_instance = sut.new(options)
           sample_event["a_field"] = "a_value"
+          expect(options["logger"]).to(receive(:error))
 
-          expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
+          expect { sut_instance.parse(sample_event) }.to raise_error(/Cannot convert/)
         end
       end
     end
@@ -207,11 +213,13 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     end
 
     it "fails for unknown hint types" do
-      sut_instance = sut.new(default_opts.update({ "hints" => { "a_field" => "not_a_real_type" } }))
+      options = default_opts.update({ "hints" => { "a_field" => "not_a_real_type" } })
+      sut_instance = sut.new(options)
+      expect(options["logger"]).to(receive(:error))
 
       sample_event["a_field"] = "a value"
 
-      expect { sut_instance.parse(sample_event) }.to raise_error(/Unknown cassandra_type/)
+      expect { sut_instance.parse(sample_event) }.to raise_error(/Cannot convert/)
     end
 
     it "fails for unsuccessful hint conversion" do
@@ -227,14 +235,14 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
   describe "ignore_bad_values is turned on" do
     [
-        { :name => "timestamp", :value => "i dont have to_time",      :expected => Time::parse("1970-01-01 00:00:00") },
+        { :name => "timestamp", :value => "i dont have to_time",      :expected => Time::parse("1970-01-01 00:00:00 +0000") },
         { :name => "inet",      :value => "i am not an inet address", :expected => "0.0.0.0" },
         { :name => "float",     :value => "i am not a float",         :expected => 0.0 },
         { :name => "bigint",    :value => "i am not a bigint",        :expected => 0 },
         { :name => "counter",   :value => "i am not a counter",       :expected => 0 },
         { :name => "int",       :value => "i am not a int",           :expected => 0 },
         { :name => "varint",    :value => "i am not a varint",        :expected => 0 },
-        { :name => "double",    :value => "i am not a double",        :expected => 0 },
+        { :name => "double",    :value => "i am not a double",        :expected => 0.0 },
         { :name => "timeuuid",  :value => "i am not a timeuuid",      :expected => "00000000-0000-0000-0000-000000000000" }
     ].each { |mapping|
       # NOTE: this is not the best test there is, but it is the best / simplest I could think of :/
