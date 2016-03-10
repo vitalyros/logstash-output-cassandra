@@ -118,7 +118,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         }
 
         it "properly maps sets to their specific set types" do
-          sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set(int)" }] }))
+          sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "set<int>" }] }))
           original_value = [ 1, 2, 3 ]
           sample_event["a_field"] = original_value
 
@@ -182,7 +182,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     end
 
     it "converts items with hints" do
-      sut_instance = sut.new(default_opts.update({ "hints" => { "a_set" => "set(int)", "an_int" => "int" } }))
+      sut_instance = sut.new(default_opts.update({ "hints" => { "a_set" => "set<int>", "an_int" => "int" } }))
       original_set = [ 1, 2, 3 ]
       sample_event["a_set"] = original_set
       sample_event["an_int"] = "123"
@@ -239,7 +239,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     }
 
     it "properly default sets" do
-      options = default_opts.update({ "ignore_bad_values" => true, "hints" => { "a_field" => "set(float)" } })
+      options = default_opts.update({ "ignore_bad_values" => true, "hints" => { "a_field" => "set<float>" } })
       expect(options["logger"]).to(receive(:warn))
       sut_instance = sut.new(options)
       sample_event["a_field"] = "i am not a set"

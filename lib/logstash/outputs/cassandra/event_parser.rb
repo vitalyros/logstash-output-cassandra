@@ -134,7 +134,7 @@ module LogStash; module Outputs; module Cassandra
           return ::Cassandra::Types::Double
         when "timeuuid"
           return ::Cassandra::Types::Timeuuid
-        when /^set\((.*)\)$/
+        when /^set<(.*)>$/
           set_type = get_cassandra_type_generator($1)
           return ::Cassandra::Types::Set.new(set_type)
         else
