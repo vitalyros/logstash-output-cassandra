@@ -64,7 +64,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
         "another_column" => "another_value"
       }
     }}
-    let(:expected_query_for_one_action) { "INSERT INTO the final frontier.a_table (a_column, another_column)\nVALUES (?, ?)" }
+    let(:expected_query_for_one_action) { "INSERT INTO a_table (a_column, another_column)\nVALUES (?, ?)" }
     let(:another_action) {{
       "table" => "another_table",
       "data" => {
@@ -73,7 +73,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
           "a_third_column" => "another_value"
       }
     }}
-    let(:expected_query_for_another_action) { "INSERT INTO the final frontier.another_table (a_column, another_column, a_third_column)\nVALUES (?, ?, ?)" }
+    let(:expected_query_for_another_action) { "INSERT INTO another_table (a_column, another_column, a_third_column)\nVALUES (?, ?, ?)" }
 
     def setup_batch_and_session_doubles()
       session_double = setup_session_double(default_options)[:session_double]
