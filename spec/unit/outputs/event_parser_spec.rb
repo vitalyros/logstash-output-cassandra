@@ -174,6 +174,16 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
         expect(action["data"]["a_column"]).to(eq("a_value"))
       end
+
+      it "obtains the filter transform from the event even when it is in the metadata" do
+        sut_instance = sut.new(default_opts.update({ "filter_transform_event_key" => "[@metadata][the_filter]" }))
+        sample_event["a_field"] = "a_value"
+        sample_event["@metadata"] = { "the_filter" => [{ "event_key" => "a_field", "column_name" => "a_column" }] }
+
+        action = sut_instance.parse(sample_event)
+
+        expect(action["data"]["a_column"]).to(eq("a_value"))
+      end
     end
   end
 
