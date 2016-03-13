@@ -1,6 +1,6 @@
 # encoding: utf-8
 require_relative "./integration_helper"
-require "logstash/outputs/cassandra_output"
+require "logstash/outputs/cassandra"
 
 module Helper
   def self.get_assert_timestamp_equallity()
