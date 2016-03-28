@@ -23,7 +23,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       expect(action["table"]).to(eq("simple"))
     end
 
-    it "parses table names with data from the event" do
+    it "allows for string expansion in table names" do
       sut_instance = sut.new(default_opts.update({ "table" => "%{[a_field]}" }))
       sample_event["a_field"] = "a_value"
 
@@ -66,7 +66,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_different_column"]).to(eq("a_second_value"))
         end
 
-        it "allows for event specific event keys" do
+        it "allows for string expansion in event keys" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "%{[pointer_to_another_field]}", "column_name" => "a_column" }] }))
           sample_event["pointer_to_another_field"] = "another_field"
           sample_event["another_field"] = "a_value"
@@ -76,7 +76,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_column"]).to(eq("a_value"))
         end
 
-        it "allows for expansion only filters for things like date string formats" do
+        it "allows for string expansion only filters for things like date string formats" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "%{+yyyyMMddHHmm}", "expansion_only" => true, "column_name" => "a_column" }] }))
           expected_value = Time.now.getutc.strftime('%Y%m%d%H%M')
 
@@ -85,7 +85,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_column"]).to(eq(expected_value))
         end
 
-        it "allows for event specific column names" do
+        it "allows for string expansion in column names" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "%{[pointer_to_another_field]}" }] }))
           sample_event["a_field"] = "a_value"
           sample_event["pointer_to_another_field"] = "a_different_column"
@@ -152,7 +152,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           }
         end
 
-        it "allows for event specific cassandra types" do
+        it "allows for string expansion in cassandra types" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "a_column", "cassandra_type" => "%{[pointer_to_a_field]}" }] }))
           sample_event["a_field"] = "123"
           sample_event["pointer_to_a_field"] = "int"
