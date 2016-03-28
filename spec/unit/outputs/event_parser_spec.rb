@@ -76,6 +76,15 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
           expect(action["data"]["a_column"]).to(eq("a_value"))
         end
 
+        it "allows for expansion only filters for things like date string formats" do
+          sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "%{+yyyyMMddHHmm}", "expansion_only" => true, "column_name" => "a_column" }] }))
+          expected_value = Time.now.getutc.strftime('%Y%m%d%H%M')
+
+          action = sut_instance.parse(sample_event)
+
+          expect(action["data"]["a_column"]).to(eq(expected_value))
+        end
+
         it "allows for event specific column names" do
           sut_instance = sut.new(default_opts.update({ "filter_transform" => [{ "event_key" => "a_field", "column_name" => "%{[pointer_to_another_field]}" }] }))
           sample_event["a_field"] = "a_value"
