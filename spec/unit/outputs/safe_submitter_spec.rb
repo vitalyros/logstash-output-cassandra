@@ -79,38 +79,39 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
     }}
     let(:expected_query_for_another_action) { "INSERT INTO another_table (a_column, another_column, a_third_column)\nVALUES (?, ?, ?)" }
 
-    def setup_batch_and_session_doubles()
-      session_double = setup_session_double(default_options)[:session_double]
-      batch_double = double()
-      expect(session_double).to(receive(:batch).and_yield(batch_double).at_least(:once)).and_return(batch_double)
-      expect(session_double).to(receive(:execute).with(batch_double).at_least(:once))
-      return { :batch_double => batch_double, :session_double => session_double }
+    def generate_future_double()
+      future_double = double()
+      expect(future_double).to(receive(:join))
+      expect(future_double).to(receive(:on_failure))
+      return future_double
     end
 
     it "prepares and executes the query" do
-      doubles = setup_batch_and_session_doubles()
+      doubles = setup_session_double(default_options)
       expect(doubles[:session_double]).to(receive(:prepare).with(expected_query_for_one_action)).and_return("eureka")
-      expect(doubles[:batch_double]).to(receive(:add).with("eureka", ["a_value", "another_value"]))
+      expect(doubles[:session_double]).to(receive(:execute_async).with("eureka", :arguments => one_action["data"].values)).and_return(generate_future_double())
       sut_instance = sut.new(default_options)
 
       sut_instance.submit([one_action])
     end
 
     it "caches the generated query" do
-      doubles = setup_batch_and_session_doubles()
+      doubles = setup_session_double(default_options)
       expect(doubles[:session_double]).to(receive(:prepare).with(expected_query_for_one_action).once).and_return("eureka")
-      expect(doubles[:batch_double]).to(receive(:add).with("eureka", ["a_value", "another_value"]).twice)
+      2.times {
+        expect(doubles[:session_double]).to(receive(:execute_async).with("eureka", :arguments => one_action["data"].values)).and_return(generate_future_double())
+      }
       sut_instance = sut.new(default_options)
 
       sut_instance.submit([one_action, one_action])
     end
 
     it "does not confuse between a new query and cached queries" do
-      doubles = setup_batch_and_session_doubles()
+      doubles = setup_session_double(default_options)
       expect(doubles[:session_double]).to(receive(:prepare).with(expected_query_for_one_action).once).and_return("eureka")
       expect(doubles[:session_double]).to(receive(:prepare).with(expected_query_for_another_action).once).and_return("great scott")
-      expect(doubles[:batch_double]).to(receive(:add).with("eureka", ["a_value", "another_value"]))
-      expect(doubles[:batch_double]).to(receive(:add).with("great scott", ["a_value", "another_value", "another_value"]))
+      expect(doubles[:session_double]).to(receive(:execute_async).with("eureka", :arguments => one_action["data"].values)).and_return(generate_future_double())
+      expect(doubles[:session_double]).to(receive(:execute_async).with("great scott", :arguments => another_action["data"].values)).and_return(generate_future_double())
       sut_instance = sut.new(default_options)
 
       sut_instance.submit([one_action, another_action])

@@ -11,10 +11,13 @@ module LogStash; module Outputs; module Cassandra
 
     def submit(actions)
       begin
-        batch = prepare_batch(actions)
-        @session.execute(batch)
+        futures = actions.map do |action|
+          query = get_query(action)
+          execute_async(query, action["data"].values)
+        end
+        futures.each(&:join)
       rescue Exception => e
-        @logger.error("Failed to send batch to cassandra", :exception => e, :backtrace => e.backtrace)
+        @logger.error("Failed to send batch to cassandra", :actions => actions, :exception => e, :backtrace => e.backtrace)
       end
     end
 
@@ -44,27 +47,24 @@ module LogStash; module Outputs; module Cassandra
       end
     end
 
-    def prepare_batch(actions)
-      statement_and_values = []
-      for action in actions
-        @logger.debug("generating query for action", :action => action)
-        query =
+    def get_query(action)
+      @logger.debug("generating query for action", :action => action)
+      query =
 "INSERT INTO #{action["table"]} (#{action["data"].keys.join(', ')})
 VALUES (#{("?" * action["data"].keys.count).split(//) * ", "})"
-
-        if !@statement_cache.has_key?(query)
-          @logger.debug("new query generated", :query => query)
-          @statement_cache[query] = @session.prepare(query)
-        end
-        statement_and_values << [@statement_cache[query], action["data"].values]
+      if !@statement_cache.has_key?(query)
+        @logger.debug("new query generated", :query => query)
+        @statement_cache[query] = @session.prepare(query)
       end
+      return @statement_cache[query]
+    end
 
-      batch = @session.batch do |b|
-        statement_and_values.each do |v|
-          b.add(v[0], v[1])
-        end
-      end
-      return batch
+    def execute_async(query, arguments)
+      future = @session.execute_async(query, arguments: arguments)
+      future.on_failure { |error|
+        @logger.error("error executing insert", :query => query, :arguments => arguments, :error => error)
+      }
+      return future
     end
   end
 end end end
