@@ -27,6 +27,7 @@ module LogStash; module Outputs; module Cassandra
         add_event_data_using_configured_hints(event, action)
       end
 
+      @logger.debug("event parsed to action", :action => action)
       return action
     end
 

@@ -47,11 +47,13 @@ module LogStash; module Outputs; module Cassandra
     def prepare_batch(actions)
       statement_and_values = []
       for action in actions
+        @logger.debug("generating query for action", :action => action)
         query =
 "INSERT INTO #{action["table"]} (#{action["data"].keys.join(', ')})
 VALUES (#{("?" * action["data"].keys.count).split(//) * ", "})"
 
         if !@statement_cache.has_key?(query)
+          @logger.debug("new query generated", :query => query)
           @statement_cache[query] = @session.prepare(query)
         end
         statement_and_values << [@statement_cache[query], action["data"].values]
