@@ -11,7 +11,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
       "logger" => logger,
       "table" => "dummy",
       "filter_transform_event_key" => nil,
-      "filter_transform" => nil,
+      "filter_transform" => [],
       "hints" => {},
       "ignore_bad_values" => false
     }

@@ -37,7 +37,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # An optional hash describing how / what to transform / filter from the original event
   # Each key is expected to be of the form { event_key => "..." column_name => "..." cassandra_type => "..." }
   # Event level processing (e.g. %{[key]}) is supported for all three
-  config :filter_transform, :validate => :array, :default => nil
+  config :filter_transform, :validate => :array, :default => []
 
   # An optional string which points to the event specific location from which to pull the filter_transform definition
   # The contents need to conform with those defined for the filter_transform config setting
