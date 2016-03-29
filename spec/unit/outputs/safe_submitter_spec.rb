@@ -4,8 +4,11 @@ require "logstash/outputs/cassandra/safe_submitter"
 
 RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
   let(:sut) { LogStash::Outputs::Cassandra::SafeSubmitter }
-  let(:default_options) {{
-      "logger" => double(),
+  let(:default_options) {
+    logger = double()
+    allow(logger).to(receive(:debug))
+    {
+      "logger" => logger,
       "cassandra" => double(),
       "username" => "a user",
       "password" => "a password",
@@ -16,7 +19,8 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       "retry_policy" => "default",
       "concrete_retry_policy" => ::Cassandra::Retry::Policies::Default,
       "keyspace" => "the final frontier"
-  }}
+    }
+  }
 
   def setup_session_double(options)
     session_double = double()
