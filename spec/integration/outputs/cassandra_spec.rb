@@ -115,5 +115,5 @@ describe "client create actions", :integration => true do
   }
 
   it "properly works with counter columns"
-  it "properly adds multiple events to multiple tables in the same batch"
+  it "properly adds multiple events to multiple tables in the same bulk"
 end
