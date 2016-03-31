@@ -12,6 +12,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       "cassandra" => double(),
       "username" => "a user",
       "password" => "a password",
+      "protocol_version" => 3,
       "hosts" => "some host",
       "port" => 9042,
       "consistency" => "one",
@@ -29,6 +30,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
     expect(options["cassandra"]).to(receive(:cluster).with(
       username: options["username"],
       password: options["password"],
+      protocol_version: options["protocol_version"],
       hosts: options["hosts"],
       port: options["port"],
       consistency: options["consistency"].to_sym,

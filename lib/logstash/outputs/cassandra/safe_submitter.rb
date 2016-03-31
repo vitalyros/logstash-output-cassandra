@@ -26,6 +26,7 @@ module LogStash; module Outputs; module Cassandra
       cluster = options["cassandra"].cluster(
         username: options["username"],
         password: options["password"],
+        protocol_version: options["protocol_version"],
         hosts: options["hosts"],
         port: options["port"],
         consistency: options["consistency"].to_sym,
