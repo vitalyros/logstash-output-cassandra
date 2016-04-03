@@ -18,7 +18,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   config :port, :validate => :number, :default => 9042, :required => true
 
   # The protocol version to use with cassandra
-  config :protocol_version, :validate => :number, :default => 3
+  config :protocol_version, :validate => :number, :default => 4
 
   # Cassandra consistency level.
   # Options: "any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one"
