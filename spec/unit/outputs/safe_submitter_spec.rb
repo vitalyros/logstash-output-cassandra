@@ -85,6 +85,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       future_double = double()
       expect(future_double).to(receive(:join))
       expect(future_double).to(receive(:on_failure))
+      expect(future_double).to(receive(:on_complete))
       return future_double
     end
 
