@@ -65,6 +65,11 @@ VALUES (#{("?" * action["data"].keys.count).split(//) * ", "})"
       future.on_failure { |error|
         @logger.error("error executing insert", :query => query, :arguments => arguments, :error => error)
       }
+      future.on_complete { |value, error|
+        if !error.nil?
+          @logger.error("error executing insert", :query => query, :arguments => arguments, :error => error)
+        end
+      }
       return future
     end
   end
