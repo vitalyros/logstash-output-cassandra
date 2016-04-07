@@ -18,7 +18,7 @@ module Cassandra
         def read_timeout(statement, consistency, required, received, retrieved, retries)
           return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required, :received => received, :retrieved => retrieved, :retries => retries}) { |opts|
             if received >= required && !retrieved
-              try_again(consistency)
+              try_again(opts[:consistency])
             else
               try_next_host
             end
