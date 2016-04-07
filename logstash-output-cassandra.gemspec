@@ -26,4 +26,9 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'longshoreman'
   s.add_development_dependency 'logstash-devutils'
   s.add_development_dependency 'logstash-codec-plain'
+  s.add_development_dependency 'simplecov'
+  s.add_development_dependency 'simplecov-rcov'
+  s.add_development_dependency 'unparser', '0.2.4'
+  s.add_development_dependency 'metric_fu'
+  s.add_development_dependency 'coveralls'
 end
