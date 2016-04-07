@@ -59,12 +59,20 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   #    ip => "inet" }
   config :hints, :validate => :hash, :default => {}
 
-  # The retry policy to use
-  # The available options are:
+  # The retry policy to use (the default is the default retry policy)
+  # the hash requires the name of the policy and the params it requires
+  # The available policy names are:
   # * default => retry once if needed / possible
   # * downgrading_consistency => retry once with a best guess lowered consistency
   # * failthrough => fail immediately (i.e. no retries)
-  config :retry_policy, :validate => [ "default", "downgrading_consistency", "failthrough" ], :default => "default", :required => true
+  # * backoff => a version of the default retry policy but with configurable backoff retries
+  # The backoff options are as follows:
+  # * backoff_type => either * or ** for linear and exponential backoffs respectively
+  # * backoff_size => the left operand for the backoff type in seconds
+  # * retry_limit => the maximum amount of retries to allow per query
+  # example:
+  # using { "type" => "backoff" "backoff_type" => "**" "backoff_size" => 2 "retry_limit" => 10 } will perform 10 retries with the following wait times: 1, 2, 4, 8, 16, ... 1024
+  config :retry_policy, :validate => :hash, :default => { "type" => "default" }, :required => true
 
   # The command execution timeout
   config :request_timeout, :validate => :number, :default => 5

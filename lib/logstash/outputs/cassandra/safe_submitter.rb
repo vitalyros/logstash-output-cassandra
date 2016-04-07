@@ -1,5 +1,6 @@
 # encoding: utf-8
 require "cassandra"
+require "logstash/outputs/cassandra/backoff_retry_policy"
 
 module LogStash; module Outputs; module Cassandra
   class SafeSubmitter
@@ -37,14 +38,21 @@ module LogStash; module Outputs; module Cassandra
       @session = cluster.connect(options["keyspace"])
     end
 
-    def get_retry_policy(policy_name)
-      case policy_name
+    def get_retry_policy(retry_policy)
+      case retry_policy["type"]
         when "default"
           return ::Cassandra::Retry::Policies::Default.new
         when "downgrading_consistency"
           return ::Cassandra::Retry::Policies::DowngradingConsistency.new
         when "failthrough"
           return ::Cassandra::Retry::Policies::Fallthrough.new
+        when "backoff"
+          return ::Cassandra::Retry::Policies::Backoff.new({
+            "backoff_type" => retry_policy["backoff_type"], "backoff_size" => retry_policy["backoff_size"],
+            "retry_limit" => retry_policy["retry_limit"], "logger" => @logger
+          })
+        else
+          raise ArgumentError, "unknown retry policy type: #{retry_policy["type"]}"
       end
     end
 

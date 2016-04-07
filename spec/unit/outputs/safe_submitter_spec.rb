@@ -17,7 +17,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       "port" => 9042,
       "consistency" => "one",
       "request_timeout" => 10,
-      "retry_policy" => "default",
+      "retry_policy" => { "type" => "default" },
       "concrete_retry_policy" => ::Cassandra::Retry::Policies::Default,
       "keyspace" => "the final frontier"
     }
@@ -49,17 +49,31 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
     end
 
     [
-        { :name => "default",                 :concrete_retry_policy => ::Cassandra::Retry::Policies::Default },
-        { :name => "downgrading_consistency", :concrete_retry_policy => ::Cassandra::Retry::Policies::DowngradingConsistency },
-        { :name => "failthrough",             :concrete_retry_policy => ::Cassandra::Retry::Policies::Fallthrough }
+        { :setting => { "type" => "default" },                 :concrete_retry_policy => ::Cassandra::Retry::Policies::Default },
+        { :setting => { "type" => "downgrading_consistency" }, :concrete_retry_policy => ::Cassandra::Retry::Policies::DowngradingConsistency },
+        { :setting => { "type" => "failthrough" },             :concrete_retry_policy => ::Cassandra::Retry::Policies::Fallthrough },
+        { :setting => { "type" => "backoff", "backoff_type" => "**", "backoff_size" => 2, "retry_limit" => 10 },
+                                                               :concrete_retry_policy => ::Cassandra::Retry::Policies::Backoff }
     ].each { |mapping|
-      it "supports the #{mapping["class"]} retry policy by passing #{mapping["name"]} as the retry_policy" do
-        options = default_options.update({ "retry_policy" => mapping[:name], "concrete_retry_policy" => mapping[:concrete_retry_policy] })
+      it "supports the #{mapping[:concrete_retry_policy]} retry policy by passing #{mapping[:setting]["type"]} as the retry_policy" do
+        options = default_options.update({ "retry_policy" => mapping[:setting], "concrete_retry_policy" => mapping[:concrete_retry_policy] })
         setup_session_double(options)
 
         sut.new(options)
       end
     }
+
+    it "properly initializes the backoff retry policy" do
+      retry_policy_config = { "type" => "backoff", "backoff_type" => "**", "backoff_size" => 2, "retry_limit" => 10 }
+      expected_policy = double()
+      options = default_options.update({ "retry_policy" => retry_policy_config, "concrete_retry_policy" => expected_policy })
+      expect(::Cassandra::Retry::Policies::Backoff).to(receive(:new).with({
+        "backoff_type" => options["retry_policy"]["backoff_type"], "backoff_size" => options["retry_policy"]["backoff_size"],
+        "retry_limit" => options["retry_policy"]["retry_limit"], "logger" =>  options["logger"]}).and_return(expected_policy))
+      setup_session_double(options)
+
+      sut.new(options)
+    end
   end
 
   describe "execution" do
