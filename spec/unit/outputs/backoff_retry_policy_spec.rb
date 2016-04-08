@@ -33,7 +33,14 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
       sut_instance.retry_with_backoff(expected_options) { |opts| yield_double.ola(opts) }
     end
 
-    it "stops once the max retries are reached"
+    it "stops once the max retries are reached" do
+      sut_instance = sut.new(default_options)
+      yield_double = double()
+      expect(yield_double).not_to(receive(:ola))
+
+      sut_instance.retry_with_backoff({ :retries => 2 }) { |opts| yield_double.ola(opts) }
+    end
+
     it "waits between retries"
     it "allows for exponential backoffs"
     it "allows for linear backoffs"
