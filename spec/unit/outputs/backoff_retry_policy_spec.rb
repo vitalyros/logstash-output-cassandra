@@ -41,7 +41,15 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
       sut_instance.retry_with_backoff({ :retries => 2 }) { |opts| yield_double.ola(opts) }
     end
 
-    it "waits between retries"
+    it "waits between retries" do
+      sut_instance = sut.new(default_options)
+      expect(Kernel).to(receive(:sleep).ordered)
+      yield_double = double()
+      expect(yield_double).to(receive(:ola).ordered)
+
+      sut_instance.retry_with_backoff({ :retries => 0 }) { |opts| yield_double.ola(opts) }
+    end
+
     it "allows for exponential backoffs"
     it "allows for linear backoffs"
   end

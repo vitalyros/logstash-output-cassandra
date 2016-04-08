@@ -57,7 +57,7 @@ module Cassandra
 
         def backoff_wait_before_next_retry(retries)
           backoff_wait_time = calculate_backoff_wait_time(retries)
-          sleep(backoff_wait_time)
+          Kernel::sleep(backoff_wait_time)
         end
 
         def calculate_backoff_wait_time(retries)
