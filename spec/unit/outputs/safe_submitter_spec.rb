@@ -4,7 +4,7 @@ require "logstash/outputs/cassandra/safe_submitter"
 
 RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
   let(:sut) { LogStash::Outputs::Cassandra::SafeSubmitter }
-  let(:default_options) {
+  let(:short_linear_backoff) {
     logger = double()
     allow(logger).to(receive(:debug))
     {
