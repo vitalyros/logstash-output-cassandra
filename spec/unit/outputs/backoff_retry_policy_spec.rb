@@ -4,28 +4,27 @@ require "logstash/outputs/cassandra/backoff_retry_policy"
 
 RSpec.describe ::Cassandra::Retry::Policies::Backoff do
   let(:sut) { ::Cassandra::Retry::Policies::Backoff }
-  let(:short_linear_backoff) {
+  let(:linear_backoff) {
     logger = double()
     allow(logger).to(receive(:error))
     {
       "logger" => logger,
       "backoff_type" => "*",
-      "backoff_size" => 1,
-      "retry_limit" => 1
+      "backoff_size" => 5,
+      "retry_limit" => 10
     }
   }
-  let(:long_exponential_backoff) {
-    short_linear_backoff.merge({
+  let(:exponential_backoff) {
+    linear_backoff.merge({
       "backoff_type" => "**",
       "backoff_size" => 2,
       "retry_limit" => 10
     })
   }
 
-
   describe "#retry_with_backoff" do
     it "runs the block if the max retries have not been reached" do
-      sut_instance = sut.new(short_linear_backoff)
+      sut_instance = sut.new(linear_backoff)
       yield_double = double()
       expect(yield_double).to(receive(:ola))
 
@@ -33,7 +32,7 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
     end
 
     it "passes the options it recieves to the yield block" do
-      sut_instance = sut.new(short_linear_backoff)
+      sut_instance = sut.new(linear_backoff)
       yield_double = double()
       expected_options = { :retries => 0 }
       expect(yield_double).to(receive(:ola).with(expected_options))
@@ -42,15 +41,15 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
     end
 
     it "stops once the max retries are reached" do
-      sut_instance = sut.new(short_linear_backoff)
+      sut_instance = sut.new(linear_backoff)
       yield_double = double()
       expect(yield_double).not_to(receive(:ola))
 
-      sut_instance.retry_with_backoff({ :retries => 2 }) { |opts| yield_double.ola(opts) }
+      sut_instance.retry_with_backoff({ :retries => 100 }) { |opts| yield_double.ola(opts) }
     end
 
     it "waits before retrying" do
-      sut_instance = sut.new(short_linear_backoff)
+      sut_instance = sut.new(linear_backoff)
       expect(Kernel).to(receive(:sleep).ordered)
       yield_double = double()
       expect(yield_double).to(receive(:ola).ordered)
@@ -59,13 +58,18 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
     end
 
     it "allows for exponential backoffs" do
-      sut_instance = sut.new(long_exponential_backoff)
+      sut_instance = sut.new(exponential_backoff)
       expect(Kernel).to(receive(:sleep).with(256))
 
       sut_instance.retry_with_backoff({ :retries => 8 }) {  }
     end
 
-    it "allows for linear backoffs"
+    it "allows for linear backoffs" do
+      sut_instance = sut.new(linear_backoff)
+      expect(Kernel).to(receive(:sleep).with(40))
+
+      sut_instance.retry_with_backoff({ :retries => 8 }) {  }
+    end
   end
 
   describe "#read_timeout" do
