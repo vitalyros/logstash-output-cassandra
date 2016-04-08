@@ -24,7 +24,15 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
       sut_instance.retry_with_backoff({ :retries => 0 }) { |opts| yield_double.ola(opts) }
     end
 
-    it "passes the options it recieves to the yield block"
+    it "passes the options it recieves to the yield block" do
+      sut_instance = sut.new(default_options)
+      yield_double = double()
+      expected_options = { :retries => 0 }
+      expect(yield_double).to(receive(:ola).with(expected_options))
+
+      sut_instance.retry_with_backoff(expected_options) { |opts| yield_double.ola(opts) }
+    end
+
     it "stops once the max retries are reached"
     it "waits between retries"
     it "allows for exponential backoffs"
