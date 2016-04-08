@@ -31,6 +31,15 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
       sut_instance.retry_with_backoff({ :retries => 0 }) { yield_double.ola() }
     end
 
+    it "returns the value from the yield block" do
+      sut_instance = sut.new(linear_backoff)
+      expected_result = double()
+
+      result = sut_instance.retry_with_backoff({ :retries => 0 }) { expected_result }
+
+      expect(result).to(be(expected_result))
+    end
+
     it "passes the options it recieves to the yield block" do
       sut_instance = sut.new(linear_backoff)
       yield_double = double()
@@ -75,7 +84,11 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
   end
 
   describe "#read_timeout" do
-    it "tries again if the result did not arrive, but the required acks arrived"
+    it "tries again if the result did not arrive, but the required acks arrived" do
+      sut_instance = sut.new(linear_backoff)
+
+    end
+
     it "tries the next host, if retries are left"
   end
 
