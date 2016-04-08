@@ -28,7 +28,7 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
       yield_double = double()
       expect(yield_double).to(receive(:ola))
 
-      sut_instance.retry_with_backoff({ :retries => 0 }) { |opts| yield_double.ola(opts) }
+      sut_instance.retry_with_backoff({ :retries => 0 }) { yield_double.ola() }
     end
 
     it "passes the options it recieves to the yield block" do
@@ -45,30 +45,32 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
       yield_double = double()
       expect(yield_double).not_to(receive(:ola))
 
-      sut_instance.retry_with_backoff({ :retries => 100 }) { |opts| yield_double.ola(opts) }
+      sut_instance.retry_with_backoff({ :retries => linear_backoff["retry_limit"] + 1 }) { yield_double.ola() }
     end
 
-    it "waits before retrying" do
+    it "waits _before_ retrying" do
       sut_instance = sut.new(linear_backoff)
       expect(Kernel).to(receive(:sleep).ordered)
       yield_double = double()
       expect(yield_double).to(receive(:ola).ordered)
 
-      sut_instance.retry_with_backoff({ :retries => 0 }) { |opts| yield_double.ola(opts) }
+      sut_instance.retry_with_backoff({ :retries => 0 }) { yield_double.ola() }
     end
 
     it "allows for exponential backoffs" do
       sut_instance = sut.new(exponential_backoff)
-      expect(Kernel).to(receive(:sleep).with(256))
+      test_retry = exponential_backoff["retry_limit"] - 1
+      expect(Kernel).to(receive(:sleep).with(exponential_backoff["backoff_size"] ** test_retry))
 
-      sut_instance.retry_with_backoff({ :retries => 8 }) {  }
+      sut_instance.retry_with_backoff({ :retries => test_retry }) {  }
     end
 
     it "allows for linear backoffs" do
       sut_instance = sut.new(linear_backoff)
-      expect(Kernel).to(receive(:sleep).with(40))
+      test_retry = exponential_backoff["retry_limit"] - 1
+      expect(Kernel).to(receive(:sleep).with(linear_backoff["backoff_size"] * test_retry))
 
-      sut_instance.retry_with_backoff({ :retries => 8 }) {  }
+      sut_instance.retry_with_backoff({ :retries => test_retry }) {  }
     end
   end
 
