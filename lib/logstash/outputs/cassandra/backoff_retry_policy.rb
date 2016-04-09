@@ -16,31 +16,18 @@ module Cassandra
         end
 
         def read_timeout(statement, consistency, required, received, retrieved, retries)
-          return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required, :received => received, :retrieved => retrieved, :retries => retries}) { |opts|
-            if received >= required && !retrieved
-              try_again(opts[:consistency])
-            else
-              try_next_host
-            end
-          }
+          return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required,
+                                      :received => received, :retrieved => retrieved, :retries => retries })
         end
 
         def write_timeout(statement, consistency, type, required, received, retries)
-          return retry_with_backoff({ :statement => statement, :consistency => consistency, :type => type, :required => required, :received => received, :retries => retries}) { |opts|
-            if opts[:received].zero?
-              try_next_host
-            elsif opts[:type] == :batch_log
-              try_again(opts[:consistency])
-            else
-              reraise
-            end
-          }
+          return retry_with_backoff({ :statement => statement, :consistency => consistency, :type => type,
+                                      :required => required, :received => received, :retries => retries })
         end
 
         def unavailable(statement, consistency, required, alive, retries)
-          return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required, :alive => alive, :retries => retries }) { |opts|
-            try_next_host
-          }
+          return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required,
+                                      :alive => alive, :retries => retries })
         end
 
         def retry_with_backoff(opts)
@@ -52,7 +39,7 @@ module Cassandra
           @logger.error('activating backoff wait', :opts => opts)
           backoff_wait_before_next_retry(opts[:retries])
 
-          return yield(opts)
+          return try_again(opts[:consistency])
         end
 
         def backoff_wait_before_next_retry(retries)
