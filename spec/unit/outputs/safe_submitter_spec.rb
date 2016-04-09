@@ -139,5 +139,14 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
 
       sut_instance.submit([one_action, another_action])
     end
+
+    it "logs and skips failed batches" do
+      setup_session_double(default_options)
+      sut_instance = sut.new(default_options)
+      expect(sut_instance).to(receive(:get_query).and_raise(ArgumentError))
+      expect(default_options["logger"]).to(receive(:error))
+
+      expect { sut_instance.submit([one_action]) }.to_not raise_error
+    end
   end
 end
