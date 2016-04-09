@@ -89,7 +89,7 @@ module LogStash; module Outputs; module Cassandra
               typed_event_data = convert_value_to_cassandra_type("00000000-0000-0000-0000-000000000000", cassandra_type)
             when "inet"
               typed_event_data = convert_value_to_cassandra_type("0.0.0.0", cassandra_type)
-            when /^set\((.*)\)$/
+            when /^set<.*>$/
               typed_event_data = convert_value_to_cassandra_type([], cassandra_type)
           end
           @logger.warn(error_message, :exception => e, :backtrace => e.backtrace)

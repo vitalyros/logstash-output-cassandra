@@ -289,7 +289,8 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
 
       action = sut_instance.parse(sample_event)
 
-      expect(action["data"]["a_field"].to_a).to(eq([]))
+      expect(action["data"]["a_field"].size).to(be(0))
+      expect(action["data"]["a_field"]).to(be_an_instance_of(Set))
     end
   end
 end
