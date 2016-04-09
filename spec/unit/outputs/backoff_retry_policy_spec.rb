@@ -76,34 +76,43 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
     end
   end
 
-  describe "#read_timeout" do
-    it "properly calls #retry_with_backoff" do
-      sut_instance = sut.new(linear_backoff)
-      expect(sut_instance).to(receive(:retry_with_backoff).with({
-        :statement => "statement", :consistency => :one, :required => 1,
-        :received => 0, :retrieved => false, :retries => 0
-      }))
+  [
+      {
+          :method_name=> "read_timeout",
+          :expected_opts => { :statement => "statement", :consistency => :one, :required => 1, :received => 0,
+                              :retrieved => false, :retries => 0 },
+          :call_args => ["statement", :one, 1, 0, false, 0]
+      },
+      {
+          :method_name=> "write_timeout",
+          :expected_opts => { :statement => "statement", :consistency => :one, :type => :prepared,
+                              :required => 1, :received => 2, :retries => 5 },
+          :call_args => ["statement", :one, :prepared, 1, 2, 5]
+      },
+      {
+          :method_name=> "unavailable",
+          :expected_opts => { :statement => "statement", :consistency => :one, :required => 3,
+                              :alive => 2, :retries => 4},
+          :call_args => ["statement", :one, 3, 2, 4]
+      }
+  ].each { |use_case|
+    describe "#{use_case[:method_name]}" do
+      it "properly calls #retry_with_backoff" do
+        sut_instance = sut.new(linear_backoff)
+        expect(sut_instance).to(receive(:retry_with_backoff).with(use_case[:expected_opts]))
 
-      sut_instance.read_timeout("statement", :one, 1, 0, false, 0)
+        sut_instance.send(use_case[:method_name], *use_case[:call_args])
+      end
+
+      it "returns the decision it got" do
+        sut_instance = sut.new(linear_backoff)
+        expected_result = double()
+        expect(sut_instance).to(receive(:retry_with_backoff).and_return(expected_result))
+
+        result = sut_instance.send(use_case[:method_name], *use_case[:call_args])
+
+        expect(result).to(be(expected_result))
+      end
     end
-
-    it "returns the decision it got" do
-      sut_instance = sut.new(linear_backoff)
-      expected_result = double()
-      expect(sut_instance).to(receive(:retry_with_backoff).and_return(expected_result))
-
-      result = sut_instance.read_timeout("statement", :one, 1, 0, false, 0)
-
-      expect(result).to(be(expected_result))
-    end
-  end
-
-  describe "#write_timeout" do
-    it "tries the next host if no acks were recieved (there is an undelying assumption that the query is idempotent)"
-    it "retries if the query was a logged batch"
-  end
-
-  describe "#unavailable" do
-    it "tries the next host"
-  end
+  }
 end
