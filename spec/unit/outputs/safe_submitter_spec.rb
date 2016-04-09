@@ -74,6 +74,12 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
 
       sut.new(options)
     end
+
+    it "fails if the retry policy is unknown" do
+      options = default_options.update({ "retry_policy" => "bad policy" })
+
+      expect { sut.new(options) }.to(raise_error(ArgumentError))
+    end
   end
 
   describe "execution" do
