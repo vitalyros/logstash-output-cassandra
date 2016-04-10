@@ -21,7 +21,7 @@ module Helper
   end
 end
 
-describe "client create actions", :integration => true do
+describe "client create actions", :docker => true do
   before(:each) do
     get_session().execute("CREATE KEYSPACE test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
   end

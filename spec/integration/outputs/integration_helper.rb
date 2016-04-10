@@ -5,7 +5,7 @@ require "cassandra"
 
 CONTAINER_NAME = "logstash-output-cassandra-#{rand(999).to_s}"
 CONTAINER_IMAGE = "cassandra"
-CONTAINER_TAG = "2"
+CONTAINER_TAG = "2.2"
 
 module CassandraHelper
   def get_host_ip
@@ -37,7 +37,7 @@ RSpec.configure do |config|
   config.include CassandraHelper
 
   # this :all hook gets run before every describe block that is tagged with :integration => true.
-  config.before(:all, :integration => true) do
+  config.before(:all, :docker => true) do
     # check if container exists already before creating new one.
     begin
       ls = Longshoreman::new
