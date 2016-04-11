@@ -1,6 +1,6 @@
 # encoding: utf-8
-require "logstash/devutils/rspec/spec_helper"
-require "logstash/event"
+require 'logstash/devutils/rspec/spec_helper'
+require 'logstash/event'
 require 'simplecov'
 require 'simplecov-rcov'
 

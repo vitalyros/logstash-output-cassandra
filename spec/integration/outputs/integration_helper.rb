@@ -1,34 +1,31 @@
 # encoding: utf-8
-require_relative "../../cassandra_spec_helper"
-require "longshoreman"
-require "cassandra"
+require_relative '../../cassandra_spec_helper'
+require 'longshoreman'
+require 'cassandra'
 
 CONTAINER_NAME = "logstash-output-cassandra-#{rand(999).to_s}"
-CONTAINER_IMAGE = "cassandra"
-CONTAINER_TAG = "2.2"
+CONTAINER_IMAGE = 'cassandra'
+CONTAINER_TAG = '2.2'
 
 module CassandraHelper
   def get_host_ip
-    address = Longshoreman.new.get_host_ip
-    return address
+    Longshoreman.new.get_host_ip
   end
 
   def get_port
     container = Longshoreman::Container.new
     container.get(CONTAINER_NAME)
-    port = container.rport(9042)
-    return port
+    container.rport(9042)
   end
 
   def get_session
     cluster = ::Cassandra.cluster(
-        username: "cassandra",
-        password: "cassandra",
-        port: get_port(),
-        hosts: [get_host_ip()]
+        username: 'cassandra',
+        password: 'cassandra',
+        port: get_port,
+        hosts: [get_host_ip]
     )
-    session = cluster.connect()
-    return session
+    cluster.connect
   end
 end
 
@@ -52,7 +49,7 @@ RSpec.configure do |config|
         })
         connect_retry = 0
         begin
-          get_session()
+          get_session
         rescue ::Cassandra::Errors::NoHostsAvailable
           # retry connecting for a minute
           connect_retry += 1
