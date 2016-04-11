@@ -53,7 +53,7 @@ module LogStash; module Outputs; module Cassandra
 
     def add_event_value_from_filter_to_action(event, filter, action)
       event_data = event.sprintf(filter['event_key'])
-      if !filter.fetch('expansion_only', false)
+      unless filter.fetch('expansion_only', false)
         event_data = event[event_data]
       end
       if filter.has_key?('cassandra_type')
