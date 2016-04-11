@@ -1,33 +1,33 @@
 # encoding: utf-8
 # This is a version of the default retry policy (https://github.com/datastax/ruby-driver/blob/v2.1.5/lib/cassandra/retry/policies/default.rb) with backoff retry configuration options
-require "cassandra"
+require 'cassandra'
 
 module Cassandra
   module Retry
     module Policies
       class Backoff
-        include Policy
+        include ::Cassandra::Retry::Policy
 
         def initialize(opts)
-          @logger = opts["logger"]
-          @backoff_type = opts["backoff_type"]
-          @backoff_size = opts["backoff_size"]
-          @retry_limit = opts["retry_limit"]
+          @logger = opts['logger']
+          @backoff_type = opts['backoff_type']
+          @backoff_size = opts['backoff_size']
+          @retry_limit = opts['retry_limit']
         end
 
         def read_timeout(statement, consistency, required, received, retrieved, retries)
-          return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required,
-                                      :received => received, :retrieved => retrieved, :retries => retries })
+          retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required,
+                               :received => received, :retrieved => retrieved, :retries => retries })
         end
 
         def write_timeout(statement, consistency, type, required, received, retries)
-          return retry_with_backoff({ :statement => statement, :consistency => consistency, :type => type,
-                                      :required => required, :received => received, :retries => retries })
+          retry_with_backoff({ :statement => statement, :consistency => consistency, :type => type,
+                               :required => required, :received => received, :retries => retries })
         end
 
         def unavailable(statement, consistency, required, alive, retries)
-          return retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required,
-                                      :alive => alive, :retries => retries })
+          retry_with_backoff({ :statement => statement, :consistency => consistency, :required => required,
+                               :alive => alive, :retries => retries })
         end
 
         def retry_with_backoff(opts)
@@ -39,7 +39,7 @@ module Cassandra
           @logger.error('activating backoff wait', :opts => opts)
           backoff_wait_before_next_retry(opts[:retries])
 
-          return try_again(opts[:consistency])
+          try_again(opts[:consistency])
         end
 
         def backoff_wait_before_next_retry(retries)
@@ -48,14 +48,14 @@ module Cassandra
         end
 
         def calculate_backoff_wait_time(retries)
-          backoff_wait_time = 0
           case @backoff_type
-          when "**"
-            backoff_wait_time = @backoff_size ** retries
-          when "*"
-            backoff_wait_time = @backoff_size * retries
+            when '**'
+              return @backoff_size ** retries
+            when '*'
+              return @backoff_size * retries
+            else
+              raise ArgumentError, "unknown backoff type #{@backoff_type}"
           end
-          return backoff_wait_time
         end
       end
     end
