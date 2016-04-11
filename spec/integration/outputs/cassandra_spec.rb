@@ -43,7 +43,7 @@ describe 'client create actions', :docker => true do
     sut = LogStash::Outputs::CassandraOutput.new(options)
     return sut
   end
-  
+
   def create_table(type_to_test)
     get_session.execute("
       CREATE TABLE test.simple(
@@ -105,7 +105,7 @@ describe 'client create actions', :docker => true do
       sut = get_sut
       sut.register
       event = build_event(type_to_test)
-      
+
       sut.receive(event)
       sut.flush
 

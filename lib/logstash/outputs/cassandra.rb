@@ -119,10 +119,9 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
     @buffer << @event_parser.parse(event)
   end
 
-  # Receive an array of events and immediately attempt to index them (no buffering)
   def multi_receive(events)
     events.each_slice(@flush_size) do |slice|
-      @safe_submitter.submit(slice.map {|e| @event_parser.parse(e) })
+      @safe_submitter.submit(slice.map {|event| @event_parser.parse(event) })
     end
   end
 

@@ -45,7 +45,7 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
         test_retry = exponential_backoff['retry_limit'] - 1
         expect(Kernel).to(receive(:sleep).with(exponential_backoff['backoff_size'] ** test_retry))
 
-        sut_instance.retry_with_backoff({ :retries => test_retry }) {  }
+        sut_instance.retry_with_backoff({ :retries => test_retry })
       end
 
       it 'allows for linear backoffs' do
@@ -53,7 +53,13 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
         test_retry = exponential_backoff['retry_limit'] - 1
         expect(Kernel).to(receive(:sleep).with(linear_backoff['backoff_size'] * test_retry))
 
-        sut_instance.retry_with_backoff({ :retries => test_retry }) {  }
+        sut_instance.retry_with_backoff({ :retries => test_retry })
+      end
+
+      it 'fails for unknown backoff types' do
+        sut_instance = sut.new(linear_backoff.merge({ 'backoff_type' => '^' }))
+
+        expect { sut_instance.retry_with_backoff({ :retries => 0}) }.to raise_error ArgumentError
       end
     end
 
