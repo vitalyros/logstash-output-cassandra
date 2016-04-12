@@ -42,6 +42,7 @@ module Cassandra
           try_again(opts[:consistency])
         end
 
+        private
         def backoff_wait_before_next_retry(retries)
           backoff_wait_time = calculate_backoff_wait_time(retries)
           Kernel::sleep(backoff_wait_time)

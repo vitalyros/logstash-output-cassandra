@@ -57,7 +57,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
                                                                :concrete_retry_policy => ::Cassandra::Retry::Policies::Backoff }
     ].each { |mapping|
       it "supports the #{mapping[:concrete_retry_policy]} retry policy by passing #{mapping[:setting]['type']} as the retry_policy" do
-        options = default_options.update({ 'retry_policy' => mapping[:setting], 'concrete_retry_policy' => mapping[:concrete_retry_policy] })
+        options = default_options.merge({ 'retry_policy' => mapping[:setting], 'concrete_retry_policy' => mapping[:concrete_retry_policy] })
         setup_session_double(options)
 
         sut.new(options)
@@ -67,7 +67,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
     it 'properly initializes the backoff retry policy' do
       retry_policy_config = { 'type' => 'backoff', 'backoff_type' => '**', 'backoff_size' => 2, 'retry_limit' => 10 }
       expected_policy = double
-      options = default_options.update({ 'retry_policy' => retry_policy_config, 'concrete_retry_policy' => expected_policy })
+      options = default_options.merge({ 'retry_policy' => retry_policy_config, 'concrete_retry_policy' => expected_policy })
       expect(::Cassandra::Retry::Policies::Backoff).to(receive(:new).with({
         'backoff_type' => options['retry_policy']['backoff_type'], 'backoff_size' => options['retry_policy']['backoff_size'],
         'retry_limit' => options['retry_policy']['retry_limit'], 'logger' =>  options['logger']}).and_return(expected_policy))
@@ -77,7 +77,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
     end
 
     it 'fails if the retry policy is unknown' do
-      options = default_options.update({ 'retry_policy' => 'bad policy' })
+      options = default_options.merge({ 'retry_policy' => 'bad policy' })
 
       expect { sut.new(options) }.to(raise_error(ArgumentError))
     end
@@ -159,8 +159,27 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       expect { sut_instance.submit([one_action]) }.to_not raise_error
     end
 
-    it 'retries queries which failed to execute' do
+    it 'does not retry queries which failed to execute in case the retry policy is not backoff' do
       doubles = setup_session_double(default_options)
+      expect(doubles[:session_double]).to(receive(:prepare).and_return('great scott'))
+      # setup a fail once execution
+      fail_on_join_future = Object.new
+      def fail_on_join_future.on_failure(&block)
+        @block = block
+      end
+      def fail_on_join_future.join
+        @block.call('oh boy...')
+      end
+      expect(doubles[:session_double]).to(receive(:execute_async).with('great scott', :arguments => another_action['data'].values).once).and_return(fail_on_join_future)
+      sut_instance = sut.new(default_options)
+
+      sut_instance.submit([another_action])
+    end
+
+    it 'retries queries which failed to execute' do
+      options = default_options.merge({ 'retry_policy' => { 'type' => 'backoff', 'backoff_type' => '**', 'backoff_size' => 2, 'retry_limit' => 10 },
+                                        'concrete_retry_policy' => ::Cassandra::Retry::Policies::Backoff })
+      doubles = setup_session_double(options)
       expect(doubles[:session_double]).to(receive(:prepare).and_return('eureka'))
       expect(doubles[:session_double]).to(receive(:prepare).and_return('great scott'))
       expect(doubles[:session_double]).to(receive(:execute_async).with('eureka', :arguments => one_action['data'].values)).and_return(generate_future_double)
@@ -174,7 +193,7 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       end
       expect(doubles[:session_double]).to(receive(:execute_async).with('great scott', :arguments => another_action['data'].values)).and_return(fail_on_join_future)
       expect(doubles[:session_double]).to(receive(:execute_async).with('great scott', :arguments => another_action['data'].values)).and_return(generate_future_double)
-      sut_instance = sut.new(default_options)
+      sut_instance = sut.new(options)
 
       sut_instance.submit([one_action, another_action])
     end
