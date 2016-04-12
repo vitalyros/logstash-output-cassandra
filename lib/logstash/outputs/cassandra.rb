@@ -1,15 +1,15 @@
 # encoding: utf-8
-require "logstash/outputs/base"
-require "logstash/namespace"
-require "logstash/outputs/cassandra/buffer"
-require "logstash/outputs/cassandra/event_parser"
-require "logstash/outputs/cassandra/safe_submitter"
+require 'logstash/outputs/base'
+require 'logstash/namespace'
+require 'logstash/outputs/cassandra/buffer'
+require 'logstash/outputs/cassandra/event_parser'
+require 'logstash/outputs/cassandra/safe_submitter'
 
 class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
 
   milestone 1
 
-  config_name "cassandra"
+  config_name 'cassandra'
 
   # List of Cassandra hostname(s) or IP-address(es)
   config :hosts, :validate => :array, :required => true
@@ -23,7 +23,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # Cassandra consistency level.
   # Options: "any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one"
   # Default: "one"
-  config :consistency, :validate => [ "any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one" ], :default => "one"
+  config :consistency, :validate => [ 'any', 'one', 'two', 'three', 'quorum', 'all', 'local_quorum', 'each_quorum', 'serial', 'local_serial', 'local_one' ], :default => 'one'
 
   # The keyspace to use
   config :keyspace, :validate => :string, :required => true
@@ -73,10 +73,10 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # example:
   # using { "type" => "backoff" "backoff_type" => "**" "backoff_size" => 2 "retry_limit" => 10 } will perform 10 retries with the following wait times: 1, 2, 4, 8, 16, ... 1024
   # NOTE: there is an underlying assumption that the insert query is idempotent !!!
-  config :retry_policy, :validate => :hash, :default => { "type" => "default" }, :required => true
+  config :retry_policy, :validate => :hash, :default => { 'type' => 'default' }, :required => true
 
   # The command execution timeout
-  config :request_timeout, :validate => :number, :default => 5
+  config :request_timeout, :validate => :number, :default => 0.1
 
   # Ignore bad values
   config :ignore_bad_values, :validate => :boolean, :default => false
@@ -109,10 +109,10 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # near-real-time.
   config :idle_flush_time, :validate => :number, :default => 1
 
-  def register()
-    setup_event_parser()
-    setup_safe_submitter()
-    setup_buffer_and_handler()
+  def register
+    setup_event_parser
+    setup_safe_submitter
+    setup_buffer_and_handler
   end
 
   def receive(event)
@@ -125,33 +125,33 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
     end
   end
 
-  def teardown()
-    close()
+  def teardown
+    close
   end
 
-  def close()
-    @buffer.stop()
+  def close
+    @buffer.stop
   end
 
   def flush
-    @buffer.flush()
+    @buffer.flush
   end
 
   private
-  def setup_event_parser()
+  def setup_event_parser
     @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
-      "logger" => @logger, "table" => @table,
-      "filter_transform_event_key" => @filter_transform_event_key, "filter_transform" => @filter_transform,
-      "hints" => @hints, "ignore_bad_values" => @ignore_bad_values
+      'logger' => @logger, 'table' => @table,
+      'filter_transform_event_key' => @filter_transform_event_key, 'filter_transform' => @filter_transform,
+      'hints' => @hints, 'ignore_bad_values' => @ignore_bad_values
     )
   end
 
-  def setup_safe_submitter()
+  def setup_safe_submitter
     @safe_submitter = ::LogStash::Outputs::Cassandra::SafeSubmitter.new(
-      "logger" => @logger, "cassandra" => ::Cassandra,
-      "hosts" => @hosts, "port" => @port, "username" => @username, "password" => @password,
-      "consistency" => @consistency, "request_timeout" => @request_timeout, "retry_policy" => @retry_policy,
-      "keyspace" => @keyspace
+      'logger' => @logger, 'cassandra' => ::Cassandra,
+      'hosts' => @hosts, 'port' => @port, 'username' => @username, 'password' => @password,
+      'consistency' => @consistency, 'request_timeout' => @request_timeout, 'retry_policy' => @retry_policy,
+      'keyspace' => @keyspace
     )
   end
 
