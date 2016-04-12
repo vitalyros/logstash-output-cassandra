@@ -1,4 +1,5 @@
 # encoding: utf-8
+require 'thread'
 require 'cassandra'
 require 'logstash/outputs/cassandra/backoff_retry_policy'
 
@@ -11,19 +12,13 @@ module LogStash; module Outputs; module Cassandra
     end
 
     def submit(actions)
-      begin
-        futures = actions.map do |action|
-          query = get_query(action)
-          execute_async(query, action['data'].values)
-        end
-        futures.each(&:join)
-      rescue Exception => e
-        @logger.error('Failed to send batch to cassandra', :actions => actions, :exception => e, :backtrace => e.backtrace)
-      end
+      queries = prepare_queries(actions)
+      execute_queries_with_retries(queries)
     end
 
     private
     def setup_cassandra_session(options)
+      @retry_policy = get_retry_policy(options['retry_policy'])
       cluster = options['cassandra'].cluster(
         username: options['username'],
         password: options['password'],
@@ -32,7 +27,7 @@ module LogStash; module Outputs; module Cassandra
         port: options['port'],
         consistency: options['consistency'].to_sym,
         timeout: options['request_timeout'],
-        retry_policy: get_retry_policy(options['retry_policy']),
+        retry_policy: @retry_policy,
         logger: options['logger']
       )
       @session = cluster.connect(options['keyspace'])
@@ -56,6 +51,19 @@ module LogStash; module Outputs; module Cassandra
       end
     end
 
+    def prepare_queries(actions)
+      remaining_queries = Queue.new
+      actions.each do |action|
+        begin
+          query = get_query(action)
+          remaining_queries << { :query => query, :arguments => action['data'].values }
+        rescue Exception => e
+          @logger.error('Failed to prepare query', :action => action, :exception => e, :backtrace => e.backtrace)
+        end
+      end
+      remaining_queries
+    end
+
     def get_query(action)
       @logger.debug('generating query for action', :action => action)
       action_data = action['data']
@@ -69,15 +77,32 @@ VALUES (#{('?' * action_data.keys.count).split(//) * ', '})"
       @statement_cache[query]
     end
 
-    def execute_async(query, arguments)
-      future = @session.execute_async(query, arguments: arguments)
-      future.on_failure { |error|
-        @logger.error('error executing insert', :query => query, :arguments => arguments, :error => error)
-      }
-      future.on_complete { |value, error|
-        unless error.nil?
-          @logger.error('error executing insert', :query => query, :arguments => arguments, :error => error)
+    def execute_queries_with_retries(queries)
+      while queries.length > 0
+        execute_queries(queries)
+      end
+    end
+
+    def execute_queries(queries)
+      futures = []
+      while queries.length > 0
+        query = queries.pop
+        begin
+          future = execute_async(query, queries)
+          futures << future
+        rescue Exception => e
+          @logger.error('Failed to send query', :query => query, :exception => e, :backtrace => e.backtrace)
         end
+      end
+      futures.each(&:join)
+    end
+
+    def execute_async(query, queries)
+      future = @session.execute_async(query[:query], arguments: query[:arguments])
+      future.on_failure { |error|
+        @logger.error('Failed to execute query', :query => query, :error => error)
+        # TODO: add configuration for this
+        queries << query
       }
       future
     end

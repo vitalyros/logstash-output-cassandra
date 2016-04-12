@@ -106,7 +106,6 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       future_double = double
       expect(future_double).to(receive(:join))
       expect(future_double).to(receive(:on_failure))
-      expect(future_double).to(receive(:on_complete))
       return future_double
     end
 
@@ -141,13 +140,43 @@ RSpec.describe LogStash::Outputs::Cassandra::SafeSubmitter do
       sut_instance.submit([one_action, another_action])
     end
 
-    it 'logs and skips failed batches' do
+    it 'logs and skips failed query preps' do
       setup_session_double(default_options)
       sut_instance = sut.new(default_options)
       expect(sut_instance).to(receive(:get_query).and_raise(ArgumentError))
       expect(default_options['logger']).to(receive(:error))
 
       expect { sut_instance.submit([one_action]) }.to_not raise_error
+    end
+
+    it 'logs and skips queries which failed during send' do
+      setup_session_double(default_options)
+      sut_instance = sut.new(default_options)
+      expect(sut_instance).to(receive(:get_query).and_return(double))
+      expect(sut_instance).to(receive(:execute_async).and_raise(ArgumentError))
+      expect(default_options['logger']).to(receive(:error))
+
+      expect { sut_instance.submit([one_action]) }.to_not raise_error
+    end
+
+    it 'retries queries which failed to execute' do
+      doubles = setup_session_double(default_options)
+      expect(doubles[:session_double]).to(receive(:prepare).and_return('eureka'))
+      expect(doubles[:session_double]).to(receive(:prepare).and_return('great scott'))
+      expect(doubles[:session_double]).to(receive(:execute_async).with('eureka', :arguments => one_action['data'].values)).and_return(generate_future_double)
+      # setup a fail once execution
+      fail_on_join_future = Object.new
+      def fail_on_join_future.on_failure(&block)
+        @block = block
+      end
+      def fail_on_join_future.join
+        @block.call('oh boy...')
+      end
+      expect(doubles[:session_double]).to(receive(:execute_async).with('great scott', :arguments => another_action['data'].values)).and_return(fail_on_join_future)
+      expect(doubles[:session_double]).to(receive(:execute_async).with('great scott', :arguments => another_action['data'].values)).and_return(generate_future_double)
+      sut_instance = sut.new(default_options)
+
+      sut_instance.submit([one_action, another_action])
     end
   end
 end
