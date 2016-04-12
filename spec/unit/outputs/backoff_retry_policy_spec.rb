@@ -40,6 +40,13 @@ RSpec.describe ::Cassandra::Retry::Policies::Backoff do
         sut_instance.retry_with_backoff({ :retries => 0 })
       end
 
+      it 'allows for an infinite amount of retries if configured with -1 as the retry limit' do
+        sut_instance = sut.new(linear_backoff.merge({ 'retry_limit' => -1 }))
+        expect(Kernel).to(receive(:sleep))
+
+        sut_instance.retry_with_backoff({ :retries => 1000000 })
+      end
+
       it 'allows for exponential backoffs' do
         sut_instance = sut.new(exponential_backoff)
         test_retry = exponential_backoff['retry_limit'] - 1

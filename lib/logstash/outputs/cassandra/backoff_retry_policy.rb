@@ -31,7 +31,7 @@ module Cassandra
         end
 
         def retry_with_backoff(opts)
-          if opts[:retries] > @retry_limit
+          if @retry_limit > -1 && opts[:retries] > @retry_limit
             @logger.error('backoff retries exhausted', :opts => opts)
             return reraise
           end
