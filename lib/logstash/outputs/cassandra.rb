@@ -76,7 +76,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   config :retry_policy, :validate => :hash, :default => { 'type' => 'default' }, :required => true
 
   # The command execution timeout
-  config :request_timeout, :validate => :number, :default => 0.1
+  config :request_timeout, :validate => :number, :default => 1
 
   # Ignore bad values
   config :ignore_bad_values, :validate => :boolean, :default => false

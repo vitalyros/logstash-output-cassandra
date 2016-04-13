@@ -112,7 +112,4 @@ describe 'client create actions', :docker => true do
       assert_proper_insert(type_to_test)
     end
   }
-
-  it 'properly works with counter columns'
-  it 'properly adds multiple events to multiple tables in the same bulk'
 end
