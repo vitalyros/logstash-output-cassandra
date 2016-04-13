@@ -65,7 +65,7 @@ describe 'client create actions', :docker => true do
     }
     LogStash::Event.new(options)
   end
-  
+
   def assert_proper_insert(type_to_test)
     result = get_session.execute('SELECT * FROM test.simple')
     expect(result.size).to((eq(1)))
