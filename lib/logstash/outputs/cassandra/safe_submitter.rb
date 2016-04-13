@@ -4,6 +4,7 @@ require 'cassandra'
 require 'logstash/outputs/cassandra/backoff_retry_policy'
 
 module LogStash; module Outputs; module Cassandra
+  # Responsible for submitting parsed actions to cassandra (with or without a retry mechanism)
   class SafeSubmitter
     def initialize(options)
       @statement_cache = {}

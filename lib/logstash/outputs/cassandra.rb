@@ -73,6 +73,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # example:
   # using { "type" => "backoff" "backoff_type" => "**" "backoff_size" => 2 "retry_limit" => 10 } will perform 10 retries with the following wait times: 1, 2, 4, 8, 16, ... 1024
   # NOTE: there is an underlying assumption that the insert query is idempotent !!!
+  # NOTE: when the backoff retry policy is used, it will also be used to handle pure client timeouts and not just ones coming from the coordinator
   config :retry_policy, :validate => :hash, :default => { 'type' => 'default' }, :required => true
 
   # The command execution timeout

@@ -1,10 +1,11 @@
 # encoding: utf-8
-# This is a version of the default retry policy (https://github.com/datastax/ruby-driver/blob/v2.1.5/lib/cassandra/retry/policies/default.rb) with backoff retry configuration options
 require 'cassandra'
 
 module Cassandra
   module Retry
     module Policies
+      # This is a version of the default retry policy (https://github.com/datastax/ruby-driver/blob/v2.1.5/lib/cassandra/retry/policies/default.rb)
+      # with backoff retry configuration options
       class Backoff
         include ::Cassandra::Retry::Policy
 

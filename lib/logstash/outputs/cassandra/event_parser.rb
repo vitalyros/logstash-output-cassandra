@@ -3,6 +3,7 @@ require 'time'
 require 'cassandra'
 
 module LogStash; module Outputs; module Cassandra
+  # Responsible for accepting events from the pipeline and returning actions for the SafeSubmitter
   class EventParser
     def initialize(options)
       @logger = options['logger']
