@@ -1,8 +1,10 @@
 # Logstash Cassandra Output Plugin
 
-This is a plugin for [Logstash](https://github.com/elasticsearch/logstash).
+This is a plugin for [Logstash](https://github.com/elastic/logstash).
 
 It is fully free and fully open source. The license is Apache 2.0, meaning you are pretty much free to use it however you want in whatever way.
+
+It was originally a fork of the [logstash-output-cassandra](https://github.com/otokarev/logstash-output-cassandra) plugin by [Oleg Tokarev](https://github.com/otokarev), which has gone unmaintained and went through a major re-design in this version we built.
 
 ## Usage
 
