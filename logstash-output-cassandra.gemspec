@@ -31,4 +31,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'unparser', '0.2.4'
   s.add_development_dependency 'metric_fu'
   s.add_development_dependency 'coveralls'
+  s.add_development_dependency 'gems'
 end
