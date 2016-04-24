@@ -1,276 +1,164 @@
 # encoding: utf-8
-require "logstash/outputs/base"
-require "logstash/namespace"
-require "time"
+require 'logstash/outputs/base'
+require 'logstash/namespace'
+require 'logstash/outputs/cassandra/buffer'
+require 'logstash/outputs/cassandra/event_parser'
+require 'logstash/outputs/cassandra/safe_submitter'
 
+class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
 
-class LogStash::Outputs::Cassandra < LogStash::Outputs::Base
-  
   milestone 1
 
-  config_name "cassandra"
+  config_name 'cassandra'
 
   # List of Cassandra hostname(s) or IP-address(es)
   config :hosts, :validate => :array, :required => true
 
+  # The port cassandra is listening to
+  config :port, :validate => :number, :default => 9042, :required => true
+
+  # The protocol version to use with cassandra
+  config :protocol_version, :validate => :number, :default => 4
+
   # Cassandra consistency level.
   # Options: "any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one"
   # Default: "one"
-  config :consistency, :validate => ["any", "one", "two", "three", "quorum", "all", "local_quorum", "each_quorum", "serial", "local_serial", "local_one"], :default => "one"
-  
+  config :consistency, :validate => [ 'any', 'one', 'two', 'three', 'quorum', 'all', 'local_quorum', 'each_quorum', 'serial', 'local_serial', 'local_one' ], :default => 'one'
+
   # The keyspace to use
   config :keyspace, :validate => :string, :required => true
 
-  # The table to use
+  # The table to use (event level processing (e.g. %{[key]}) is supported)
   config :table, :validate => :string, :required => true
-   
+
   # Username
   config :username, :validate => :string, :required => true
 
   # Password
   config :password, :validate => :string, :required => true
 
-  # Source
-  config :source, :validate => :string, :default => nil
-  
-  # Hints
+  # An optional hash describing how / what to transform / filter from the original event
+  # Each key is expected to be of the form { event_key => "..." column_name => "..." cassandra_type => "..." }
+  # Event level processing (e.g. %{[key]}) is supported for all three
+  config :filter_transform, :validate => :array, :default => []
+
+  # An optional string which points to the event specific location from which to pull the filter_transform definition
+  # The contents need to conform with those defined for the filter_transform config setting
+  # Event level processing (e.g. %{[key]}) is supported
+  config :filter_transform_event_key, :validate => :string, :default => nil
+
+  # An optional hints hash which will be used in case filter_transform or filter_transform_event_key are not in use
+  # It is used to trigger a forced type casting to the cassandra driver types in
+  # the form of a hash from column name to type name in the following manner:
+  # hints => {
+  #    id => "int"
+  #    at => "timestamp"
+  #    resellerId => "int"
+  #    errno => "int"
+  #    duration => "float"
+  #    ip => "inet" }
   config :hints, :validate => :hash, :default => {}
 
-  # Number of seconds to wait after failure before retrying
-  config :retry_delay, :validate => :number, :default => 3, :required => false
+  # The retry policy to use (the default is the default retry policy)
+  # the hash requires the name of the policy and the params it requires
+  # The available policy names are:
+  # * default => retry once if needed / possible
+  # * downgrading_consistency => retry once with a best guess lowered consistency
+  # * failthrough => fail immediately (i.e. no retries)
+  # * backoff => a version of the default retry policy but with configurable backoff retries
+  # The backoff options are as follows:
+  # * backoff_type => either * or ** for linear and exponential backoffs respectively
+  # * backoff_size => the left operand for the backoff type in seconds
+  # * retry_limit => the maximum amount of retries to allow per query
+  # example:
+  # using { "type" => "backoff" "backoff_type" => "**" "backoff_size" => 2 "retry_limit" => 10 } will perform 10 retries with the following wait times: 1, 2, 4, 8, 16, ... 1024
+  # NOTE: there is an underlying assumption that the insert query is idempotent !!!
+  # NOTE: when the backoff retry policy is used, it will also be used to handle pure client timeouts and not just ones coming from the coordinator
+  config :retry_policy, :validate => :hash, :default => { 'type' => 'default' }, :required => true
 
-  # Set max retry for each batch
-  config :max_retries, :validate => :number, :default => 3
-  
-  # Ignore bad message
-  config :ignore_bad_messages, :validate => :boolean, :default => false
-  
+  # The command execution timeout
+  config :request_timeout, :validate => :number, :default => 1
+
   # Ignore bad values
   config :ignore_bad_values, :validate => :boolean, :default => false
-  
-  # Batch size
-  config :batch_size, :validate => :number, :default => 1
 
-  # Batch processor tic (sec)
-  config :batch_processor_thread_period, :validate => :number, :default => 1
+  # In Logstashes >= 2.2 this setting defines the maximum sized bulk request Logstash will make
+  # You you may want to increase this to be in line with your pipeline's batch size.
+  # If you specify a number larger than the batch size of your pipeline it will have no effect,
+  # save for the case where a filter increases the size of an inflight batch by outputting
+  # events.
+  #
+  # In Logstashes <= 2.1 this plugin uses its own internal buffer of events.
+  # This config option sets that size. In these older logstashes this size may
+  # have a significant impact on heap usage, whereas in 2.2+ it will never increase it.
+  # To make efficient bulk API calls, we will buffer a certain number of
+  # events before flushing that out to Cassandra. This setting
+  # controls how many events will be buffered before sending a batch
+  # of events. Increasing the `flush_size` has an effect on Logstash's heap size.
+  # Remember to also increase the heap size using `LS_HEAP_SIZE` if you are sending big commands
+  # or have increased the `flush_size` to a higher value.
+  config :flush_size, :validate => :number, :default => 500
 
-  public
+  # The amount of time since last flush before a flush is forced.
+  #
+  # This setting helps ensure slow event rates don't get stuck in Logstash.
+  # For example, if your `flush_size` is 100, and you have received 10 events,
+  # and it has been more than `idle_flush_time` seconds since the last flush,
+  # Logstash will flush those 10 events automatically.
+  #
+  # This helps keep both fast and slow log streams moving along in
+  # near-real-time.
+  config :idle_flush_time, :validate => :number, :default => 1
+
   def register
-    require "thread"
-    require "cassandra"
-    @@r = 0
+    setup_event_parser
+    setup_safe_submitter
+    setup_buffer_and_handler
+  end
 
-    # Messages collector. When @batch_msg_queue.length > batch_size
-    # batch_size of messages are sent to Cassandra
-    @batch_msg_queue = Queue.new
-
-    # Failed batches collector. Every retry_delay secs batches from the queue
-    # are pushed to Cassandra. If a try is failed a batch.try_count is incremented.
-    # If batch.try_count > max_retries, the batch is rejected
-    # with error message in error log
-    @failed_batch_queue = Queue.new
-
-    @statement_cache = {}
-    @batch = []
-    
-    cluster = Cassandra.cluster(
-      username: @username,
-      password: @password,
-      hosts: @hosts,
-      consistency: @consistency.to_sym
-    )
-    
-    @session  = cluster.connect(@keyspace)
-    
-    @logger.info("New Cassandra output", :username => @username,
-                :hosts => @hosts, :keyspace => @keyspace, :table => @table)
-
-    @batch_processor_thread = Thread.new do
-      loop do
-        stop_it = Thread.current["stop_it"]
-        sleep(@batch_processor_thread_period)
-        send_batch2cassandra stop_it
-        break if stop_it
-      end
-    end
-
-    @failed_batch_processor_thread = Thread.new do
-      loop do
-        stop_it = Thread.current["stop_it"]
-        sleep(@retry_delay)
-        resend_batch2cassandra
-        break if stop_it
-      end
-    end
-  end # def register
-
-  public
   def receive(event)
-    return unless output?(event)
+    @buffer << @event_parser.parse(event)
+  end
 
-    if @source
-      msg = event[@source]
-    else
-      msg = event.to_hash
-      # Filter out @timestamp, @version, etc
-      # to be able to use elasticsearch input plugin directly
-      msg.reject!{|key| %r{^@} =~ key}
-    end
-
-    if !msg.is_a?(Hash)
-        if @ignore_bad_messages
-            @logger.warn("Failed to get message from source. Skip it.",
-                :event => event)
-            return
-        end
-        @logger.fatal("Failed to get message from source. Source is empty or it is not a hash.",
-            :event => event)
-        raise "Failed to get message from source. Source is empty or it is not a hash."
-    end
-    
-    convert2cassandra_format! msg
-
-    @batch_msg_queue.push(msg)
-    @logger.info("Queue message to be sent")
-  end # def receive
-
-  private
-  def send_batch2cassandra stop_it = false
-    loop do
-      break if @batch_msg_queue.length < @batch_size and !stop_it
-      begin
-        batch = prepare_batch
-        break if batch.nil?
-        @session.execute(batch)
-        @logger.info "Batch sent successfully"
-      rescue Exception => e
-        @logger.warn "Failed to send batch (error: #{e.to_s}). Schedule it to send later."
-        @failed_batch_queue.push({:batch => batch, :try_count => 0})
-      end
+  def multi_receive(events)
+    events.each_slice(@flush_size) do |slice|
+      @safe_submitter.submit(slice.map {|event| @event_parser.parse(event) })
     end
   end
 
-  private
-  def prepare_batch()
-    statement_and_values = []
-    while statement_and_values.length < @batch_size and !@batch_msg_queue.empty?
-      msg = @batch_msg_queue.pop
-      query = "INSERT INTO #{@keyspace}.#{@table} (#{msg.keys.join(', ')})
-        VALUES (#{("?"*msg.keys.count).split(//)*", "})"
-
-      @statement_cache[query] = @session.prepare(query) unless @statement_cache.key?(query)
-      statement_and_values << [@statement_cache[query], msg.values]
-    end
-    return nil if statement_and_values.empty?
-
-    batch = @session.batch do |b|
-      statement_and_values.each do |v|
-        b.add(v[0], v[1])
-      end
-    end
-    return batch
-  end
-
-  private
-  def resend_batch2cassandra
-    while !@failed_batch_queue.empty?
-      batch_container = @failed_batch_queue.pop
-      batch = batch_container[:batch]
-      count = batch_container[:try_count]
-      begin
-        @session.execute(batch)
-        @logger.info "Batch sent"
-      rescue Exception => e
-        if count > @max_retries
-          @logger.fatal("Failed to send batch to Cassandra (error: #{e.to_s}) in #{@max_retries} tries")
-        else
-          @failed_batch_queue.push({:batch => batch, :try_count => count + 1})
-          @logger.warn("Failed to send batch again (error: #{e.to_s}). Reschedule it.")
-        end
-      end
-      sleep(@retry_delay)
-    end
-  end
-
-  public
   def teardown
-    @batch_processor_thread["stop_it"] = true
-    @batch_processor_thread.join
+    close
+  end
 
-    @failed_batch_processor_thread["stop_it"] = true
-    @failed_batch_processor_thread.join
+  def close
+    @buffer.stop
+  end
+
+  def flush
+    @buffer.flush
   end
 
   private
-  def convert2cassandra_format! msg
-    @hints.each do |key, value|
-      if msg.key?(key)
-        begin
-          msg[key] = case value
-          when 'uuid'
-            Cassandra::Types::Uuid.new(msg[key])
-          when 'timestamp'
-            Cassandra::Types::Timestamp.new(Time::parse(msg[key]))
-          when 'inet'
-            Cassandra::Types::Inet.new(msg[key])
-          when 'float'
-            Cassandra::Types::Float.new(msg[key])
-          when 'varchar'
-            Cassandra::Types::Varchar.new(msg[key])
-          when 'text'
-            Cassandra::Types::Text.new(msg[key])
-          when 'blob'
-            Cassandra::Types::Blog.new(msg[key])
-          when 'ascii'
-            Cassandra::Types::Ascii.new(msg[key])
-          when 'bigint'
-            Cassandra::Types::Bigint.new(msg[key])
-          when 'counter'
-            Cassandra::Types::Counter.new(msg[key])
-          when 'int'
-            Cassandra::Types::Int.new(msg[key])
-          when 'varint'
-            Cassandra::Types::Varint.new(msg[key])
-          when 'boolean'
-            Cassandra::Types::Boolean.new(msg[key])
-          when 'decimal'
-            Cassandra::Types::Decimal.new(msg[key])
-          when 'double'
-            Cassandra::Types::Double.new(msg[key])
-          when 'timeuuid'
-            Cassandra::Types::Timeuuid.new(msg[key])
-          end
-        rescue Exception => e
-          # Ok, cannot convert the value, let's assign it in default one
-          if @ignore_bad_values
-            bad_value = msg[key]
-            msg[key] = case value
-            when 'int', 'varint', 'bigint', 'double', 'decimal', 'counter'
-              0
-            when 'uuid', 'timeuuid'
-              Cassandra::Uuid.new("00000000-0000-0000-0000-000000000000")
-            when 'timestamp'
-              Cassandra::Types::Timestamp.new(Time::parse("1970-01-01 00:00:00"))
-            when 'inet'
-              Cassandra::Types::Inet.new("0.0.0.0")
-            when 'float'
-              Cassandra::Types::Float.new(0)
-            when 'boolean'
-              Cassandra::Types::Boolean.new(false)
-            when 'text', 'varchar', 'ascii'
-              Cassandra::Types::Float.new(0)
-            when 'blob'
-              Cassandra::Types::Blob.new(nil)
-            end
-            @logger.warn("Cannot convert `#{key}` value (`#{bad_value}`) to `#{value}` type, set to `#{msg[key]}`",
-                         :exception => e, :backtrace => e.backtrace)
-          else 
-            @logger.fatal("Cannot convert `#{key}` value (`#{msg[key]}`) to `#{value}` type",
-                          :exception => e, :backtrace => e.backtrace)
-            raise "Cannot convert `#{key}` value (`#{msg[key]}`) to `#{value}` type"
-          end
-        end
-      end
+  def setup_event_parser
+    @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
+      'logger' => @logger, 'table' => @table,
+      'filter_transform_event_key' => @filter_transform_event_key, 'filter_transform' => @filter_transform,
+      'hints' => @hints, 'ignore_bad_values' => @ignore_bad_values
+    )
+  end
+
+  def setup_safe_submitter
+    @safe_submitter = ::LogStash::Outputs::Cassandra::SafeSubmitter.new(
+      'logger' => @logger, 'cassandra' => ::Cassandra,
+      'hosts' => @hosts, 'port' => @port, 'username' => @username, 'password' => @password,
+      'consistency' => @consistency, 'request_timeout' => @request_timeout, 'retry_policy' => @retry_policy,
+      'keyspace' => @keyspace
+    )
+  end
+
+  def setup_buffer_and_handler
+    @buffer = ::LogStash::Outputs::Cassandra::Buffer.new(@logger, @flush_size, @idle_flush_time) do |actions|
+      @safe_submitter.submit(actions)
     end
   end
-end # class LogStash::Outputs::Cassandra
+end

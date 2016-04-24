@@ -3,3 +3,7 @@ Gemfile.lock
 .bundle
 vendor
 /nbproject/private/
+.idea
+coverage
+tmp
+.sonar
