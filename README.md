@@ -138,7 +138,6 @@ bin/logstash -e 'output {cassandra {}}'
 ```
 
 ## TODO
-* Fix the authentication bug (no user;pass in cassandra plugin?!)
 * Finish integration specs
     * it "properly works with counter columns"
     * it "properly adds multiple events to multiple tables in the same bulk"
