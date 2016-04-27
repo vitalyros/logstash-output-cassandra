@@ -110,12 +110,17 @@ Edit Logstash Gemfile and add the local plugin path, for example:
 ```
 gem "logstash-output-cassandra", :path => "/your/local/logstash-output-cassandra"
 ```
-
-Install plugin
+And install by executing:
 ```
 bin/plugin install --no-verify
 ```
-Run Logstash with the plugin
+
+Or install plugin from RubyGems:
+```
+bin/plugin install logstash-output-cassandra
+```
+
+And then run Logstash with the plugin:
 ```
 bin/logstash -e 'output {cassandra {}}'
 ```
