@@ -40,6 +40,8 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # An optional hash describing how / what to transform / filter from the original event
   # Each key is expected to be of the form { event_key => "..." column_name => "..." cassandra_type => "..." }
   # Event level processing (e.g. %{[key]}) is supported for all three
+  # In case you only want to do string expansion (e.g. in the case of adding event specific dates) you can add the expansion_only key with a value of true
+  # Example: using { event_key => "%{+yyyyMMddHH}" column_name => "date" expansion_only => true } will result in a date column with a string of the specified format
   config :filter_transform, :validate => :array, :default => []
 
   # An optional string which points to the event specific location from which to pull the filter_transform definition
