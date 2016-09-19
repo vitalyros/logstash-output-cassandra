@@ -37,6 +37,37 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # Password
   config :password, :validate => :string, :required => true
 
+  # An optional config, alternative to the filter_transform filter_transform_event_key and hints
+  # In the form of hash this config strictly defines which event data should be saved to which cassandra columns of the target table.
+  # It is required to set the the types of these cassandra columns.
+  # It is possible to define the behavior in cases when event data is absent or invalid (impossible to transform to cassandra data type)
+  # The config structure:
+  # * column_name => mandatory string. Name of the cassandra column to save to.
+  # * cassandra_type => mandatory string. Cassandra type of the column.
+  # * event_key => mandatory string. A pointer to saved event data. Either a top level event key, or a path to the data in [..][..].. notation
+  #     e.g. [top_level_key][child_key_1][child_key_2]
+  # * on_nil => optional string. Default value is "fail".
+  #     Defines behavior in the case when event data is absent (or nil) by the given event_key
+  # * on_invalid => optional string. Default value is "fail".
+  #     Defines behavior in the case when the data by given event_key can't be translated to the given cassandra_type
+  #
+  #     Both on_nil and on_invalid have the same form. Its one of the predefined strings:
+  #     "fail" => an exception will be raised, consequently the event will not be saved to cassandra table.
+  #     "ignore" => this column will either be skipped entirely (absent in an insert request to cassandra).
+  #       This behavior can be used for optional columns, when it is unnecessary for incoming events to contain full set of data.
+  #       This behavior can't be used for partitioning or clustering keys of the cassandra table, since they are mandatory.
+  #     "ignore warn" => same behavior, as for "ignore", but a detailed warning message will be logged
+  #     "default" => the value, set in the "default" field will be used.
+  #       If the "default" field is not set, the default value will be chosen automatically, depending on the cassandra_type.
+  #     "default warn" => same behavior, as for "default", but a detailed warning message will be logged.
+  #
+  # * default => optional string. Undefined by default. Default value used when either on_nil, or on_invalid is set to 'default'
+  # Examples:
+  #   for optional column { column_name => "comment" column_type => "text" on_nil => "ignore" on_invalid => "ignore warn"}
+  #   for default value column { column_name => "amount" column_type => "int" on_nil => "default" default => "0"}
+  #   for mandatory column { column_name => "id" column_type => "text" }
+  config :columns, :validate => :array, :default => []
+
   # An optional hash describing how / what to transform / filter from the original event
   # Each key is expected to be of the form { event_key => "..." column_name => "..." cassandra_type => "..." }
   # Event level processing (e.g. %{[key]}) is supported for all three
@@ -143,7 +174,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   private
   def setup_event_parser
     @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
-      'logger' => @logger, 'table' => @table,
+      'logger' => @logger, 'table' => @table, 'columns' => @columns,
       'filter_transform_event_key' => @filter_transform_event_key, 'filter_transform' => @filter_transform,
       'hints' => @hints, 'ignore_bad_values' => @ignore_bad_values
     )
