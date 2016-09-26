@@ -67,6 +67,7 @@ module LogStash; module Outputs; module Cassandra
       if keys.empty?
         raise ArgumentError, "Invalid configuration. Invalid event_key value `#{column['event_key']}` in column config `#{column}`"
       end
+      raw_event_data = true
       event_data = event
       for key in keys
         event_data = event_data[key]
@@ -80,39 +81,42 @@ module LogStash; module Outputs; module Cassandra
               @logger.warn("Event data is nil by key `#{column['event_key']}`. event: #{event}")
               return
             when 'default'
-              event_data = get_default_value(cassandra_type)
+              event_data = get_default_value(event, column)
+              raw_event_data = false
             when 'default warn'
               @logger.warn("Event data is nil by key `#{column['event_key']}`. event: #{event}")
-              event_data = get_default_value(cassandra_type)
+              event_data = get_default_value(event, column)
+              raw_event_data = false
             else
               raise ArgumentError, "Invalid configuration. Invalid on_nil value `#{column['on_nil']}` in column config `#{column}`"
           end
         end
       end
-      cassandra_type = event.sprintf(column['cassandra_type'])
-      begin
-        event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
-      rescue Exception => e
-        case column['on_invalid']
-          when nil, 'fail'
-            raise ArgumentError, "Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}"
-          when 'ignore'
-            return
-          when 'ignore warn'
-            @logger.warn("Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}")
-            return
-          when 'default'
-            event_data = get_default_value(cassandra_type)
-          when 'default warn'
-            @logger.warn("Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}")
-            event_data = get_default_value(cassandra_type)
-          else
-            raise ArgumentError, "Invalid configuration. Invalid on_nil value `#{column['on_nil']}` in column config `#{column}`"
+      if raw_event_data
+        cassandra_type = event.sprintf(column['cassandra_type'])
+        begin
+          event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
+        rescue Exception => e
+          case column['on_invalid']
+            when nil, 'fail'
+              raise ArgumentError, "Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}"
+            when 'ignore'
+              return
+            when 'ignore warn'
+              @logger.warn("Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}")
+              return
+            when 'default'
+              event_data = get_default_value(event, column)
+            when 'default warn'
+              @logger.warn("Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}")
+              event_data = get_default_value(event, column)
+            else
+              raise ArgumentError, "Invalid configuration. Invalid on_nil value `#{column['on_nil']}` in column config `#{column}`"
+          end
         end
       end
       column_name = event.sprintf(column['column_name'])
       action['data'][column_name] = event_data
-
     end
 
     def add_event_value_from_filter_to_action(event, filter, action)
@@ -146,7 +150,7 @@ module LogStash; module Outputs; module Cassandra
       rescue Exception => e
         error_message = "Cannot convert `value (`#{event_data}`) to `#{cassandra_type}` type"
         if @ignore_bad_values
-          typed_event_data = get_default_value(cassandra_type)
+          typed_event_data = get_default_value_by_type(cassandra_type)
           @logger.warn(error_message, :exception => e, :backtrace => e.backtrace)
         else
           @logger.error(error_message, :exception => e, :backtrace => e.backtrace)
@@ -156,7 +160,17 @@ module LogStash; module Outputs; module Cassandra
       typed_event_data
     end
 
-    def get_default_value(cassandra_type)
+    def get_default_value(event, column)
+      cassandra_type = event.sprintf(column['cassandra_type'])
+      default = event.sprintf(column['default'])
+      if default == nil
+        return get_default_value_by_type(cassandra_type)
+      else
+        return convert_value_to_cassandra_type(default, cassandra_type)
+      end
+    end
+
+    def get_default_value_by_type(cassandra_type)
       case cassandra_type
         when 'float', 'int', 'varint', 'bigint', 'double', 'counter', 'timestamp'
           return convert_value_to_cassandra_type(0, cassandra_type)
