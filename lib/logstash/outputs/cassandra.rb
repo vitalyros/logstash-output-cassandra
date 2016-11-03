@@ -143,6 +143,10 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # near-real-time.
   config :idle_flush_time, :validate => :number, :default => 1
 
+  # Cassandra record ttl in seconds
+  # If absent, ttl is not used for the record
+  config :ttl, :validate => :number, :default => nil
+
   def register
     setup_event_parser
     setup_safe_submitter
@@ -185,7 +189,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
       'logger' => @logger, 'cassandra' => ::Cassandra,
       'hosts' => @hosts, 'port' => @port, 'username' => @username, 'password' => @password,
       'consistency' => @consistency, 'request_timeout' => @request_timeout, 'retry_policy' => @retry_policy,
-      'keyspace' => @keyspace
+      'keyspace' => @keyspace, 'ttl' => @ttl
     )
   end
 
