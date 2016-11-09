@@ -9,6 +9,7 @@ module LogStash; module Outputs; module Cassandra
     def initialize(options)
       @statement_cache = {}
       @logger = options['logger']
+      @ttl = options['ttl']
       setup_cassandra_session(options)
     end
 
@@ -72,8 +73,11 @@ module LogStash; module Outputs; module Cassandra
       @logger.debug('generating query for action', :action => action)
       action_data = action['data']
       query =
-"INSERT INTO #{action['table']} (#{action_data.keys.join(', ')})
-VALUES (#{('?' * action_data.keys.count).split(//) * ', '})"
+        "INSERT INTO #{action['table']} (#{action_data.keys.join(', ')})
+        VALUES (#{('?' * action_data.keys.count).split(//) * ', '})"
+      if @ttl
+        query = query << " USING TTL #{@ttl}"
+      end
       unless @statement_cache.has_key?(query)
         @logger.debug('preparing new query', :query => query)
         @statement_cache[query] = @session.prepare(query)
