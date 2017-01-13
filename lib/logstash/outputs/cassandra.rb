@@ -157,12 +157,6 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
     @buffer << @event_parser.parse(event)
   end
 
-  def multi_receive(events)
-    events.each_slice(@flush_size) do |slice|
-      @safe_submitter.submit(slice.map {|event| @event_parser.parse(event) })
-    end
-  end
-
   def teardown
     close
   end
