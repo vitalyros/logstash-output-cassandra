@@ -14,6 +14,17 @@ module LogStash; module Outputs; module Cassandra
       @columns = options['columns']
       @hints = options['hints']
       @ignore_bad_values = options['ignore_bad_values']
+      if @columns
+        @column_paths = {}
+        @columns.each do |column|
+          path = column['event_key'].split(/[\[\]]/).map { |s| s.strip }.select { |s| !s.empty? }
+          if path.empty?
+            raise ArgumentError, "Invalid configuration. Invalid event_key value `#{column['event_key']}` in column config `#{column}`"
+          else
+            @column_paths[column] = path
+          end
+        end
+      end
     end
 
     def parse(event)
@@ -63,13 +74,10 @@ module LogStash; module Outputs; module Cassandra
     end
 
     def add_event_value_from_column_definition(event, column, action)
-      keys = column['event_key'].split(/[\[\]]/).map { |s| s.strip }.select { |s| !s.empty? }
-      if keys.empty?
-        raise ArgumentError, "Invalid configuration. Invalid event_key value `#{column['event_key']}` in column config `#{column}`"
-      end
       raw_event_data = true
       event_data = event
-      for key in keys
+      column_path = @column_paths[column]
+      for key in column_path
         event_data = event_data[key]
         if event_data == nil
           case column['on_nil']
