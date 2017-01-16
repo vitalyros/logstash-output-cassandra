@@ -186,6 +186,8 @@ module LogStash; module Outputs; module Cassandra
           return convert_value_to_cassandra_type('00000000-0000-0000-0000-000000000000', cassandra_type)
         when 'inet'
           return convert_value_to_cassandra_type('0.0.0.0', cassandra_type)
+        when /^list<.*>$/
+          return convert_value_to_cassandra_type([], cassandra_type)
         when /^set<.*>$/
           return convert_value_to_cassandra_type([], cassandra_type)
         else
@@ -231,6 +233,18 @@ module LogStash; module Outputs; module Cassandra
           return ::Cassandra::Types::Double.new(event_data)
         when 'timeuuid'
           return ::Cassandra::Types::Timeuuid.new(event_data)
+        when /^list<(.*)>$/
+          # convert each value
+          # then add all to an array
+          converted_items = []
+          set_type = $1
+          @logger.warn("LIST #{event_data} of type (#{set_type})")
+          event_data.each { |item|
+            @logger.warn("CONVERT ITEM (#{item}) of type (#{set_type})")
+            converted_item = convert_value_to_cassandra_type(item, set_type)
+            converted_items << converted_item
+          }
+          return converted_items
         when /^set<(.*)>$/
           # convert each value
           # then add all to an array and convert to set
