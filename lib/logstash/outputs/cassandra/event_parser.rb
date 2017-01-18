@@ -2,28 +2,59 @@
 require 'time'
 require 'cassandra'
 
-module LogStash; module Outputs; module Cassandra
+module LogStash module Outputs module Cassandra
   # Responsible for accepting events from the pipeline and returning actions for the SafeSubmitter
   class EventParser
     def initialize(options)
-      @logger = options['logger']
-      @table = options['table']
-      @filter_transform_event_key = options['filter_transform_event_key']
-      assert_filter_transform_structure(options['filter_transform']) if options['filter_transform']
-      @filter_transform = options['filter_transform']
+      @logger  = options['logger']
+      @table   = options['table']
       @columns = options['columns']
-      @hints = options['hints']
-      @ignore_bad_values = options['ignore_bad_values']
-      if @columns
-        @column_paths = {}
-        @columns.each do |column|
-          path = column['event_key'].split(/[\[\]]/).map { |s| s.strip }.select { |s| !s.empty? }
-          if path.empty?
-            raise ArgumentError, "Invalid configuration. Invalid event_key value `#{column['event_key']}` in column config `#{column}`"
-          else
-            @column_paths[column] = path
+      init_simple_type_transformations
+      init_udt_conf(options['user_defined_types'])
+      init_column_transformations
+    end
+
+    # Prepares transformations for simple cassandra types
+    def init_simple_type_transformations()
+      @simple_type_transformations = {
+        'timestamp' => lambda { |data, event|
+          converted_value = data
+          if converted_value.is_a?(Numeric)
+            converted_value = Time.at(converted_value)
+          elsif converted_value.respond_to?(:to_s)
+            converted_value = Time::parse(data.to_s)
           end
-        end
+          return ::Cassandra::Types::Timestamp.new(converted_value)
+        },
+        'inet'      => lambda { |data, event| return ::Cassandra::Types::Inet.new(data) },
+        'float'     => lambda { |data, event| return ::Cassandra::Types::Float.new(data) },
+        'varchar'   => lambda { |data, event| return ::Cassandra::Types::Varchar.new(data) },
+        'text'      => lambda { |data, event| return ::Cassandra::Types::Text.new(data) },
+        'blob'      => lambda { |data, event| return ::Cassandra::Types::Blob.new(data) },
+        'ascii'     => lambda { |data, event| return ::Cassandra::Types::Ascii.new(data) },
+        'bigint'    => lambda { |data, event| return ::Cassandra::Types::Bigint.new(data) },
+        'counter'   => lambda { |data, event| return ::Cassandra::Types::Counter.new(data) },
+        'int'       => lambda { |data, event| return ::Cassandra::Types::Int.new(data) },
+        'varint'    => lambda { |data, event| return ::Cassandra::Types::Varint.new(data) },
+        'boolean'   => lambda { |data, event| return ::Cassandra::Types::Boolean.new(data) },
+        'decimal'   => lambda { |data, event| return ::Cassandra::Types::Decimal.new(data) },
+        'double'    => lambda { |data, event| return ::Cassandra::Types::Double.new(data) },
+        'timeuuid'  => lambda { |data, event| return ::Cassandra::Types::Timeuuid.new(data) }
+      }
+    end
+
+    # Maps user defined types configurations by name
+    def init_udt_conf(udt_configs_list)
+      @udt_configs = {}
+      udt_configs_list.each do |udt_config|
+        @udt_configs[udt_config['name']] = udt_config
+      end
+    end
+
+    # Prepares transformation for all columns, mentioned in columns config
+    def init_column_transformations
+      @columns.each do |column|
+        column['transformation'] = create_column_transformation(column)
       end
     end
 
@@ -31,232 +62,169 @@ module LogStash; module Outputs; module Cassandra
       action = {}
       begin
         action['table'] = event.sprintf(@table)
-        filter_transform = get_filter_transform(event)
-        if filter_transform
-          action['data'] = {}
-          filter_transform.each { |filter|
-            add_event_value_from_filter_to_action(event, filter, action)
-          }
-        elsif @columns
-          action['data'] = {}
-          @columns.each { |column|
-            add_event_value_from_column_definition(event, column, action)
-          }
-        else
-          add_event_data_using_configured_hints(event, action)
-        end
+        action['data']  = {}
+        @columns.each { |column|
+          action['data'][column['name']] = column['transformation'][event, event]
+        }
         @logger.debug('event parsed to action', :action => action)
       rescue Exception => e
-        @logger.error('failed parsing event', :event => event, :error => e)
+        @logger.error('failed parsing event', :event => event, :error => e, :backtrace => e.backtrace)
         action = nil
       end
       action
     end
 
-    private
-    def get_filter_transform(event)
-      filter_transform = nil
-      if @filter_transform_event_key
-        filter_transform = event[@filter_transform_event_key]
-        assert_filter_transform_structure(filter_transform)
-      elsif @filter_transform.length > 0
-        filter_transform = @filter_transform
+    def create_udt_transformation(udt_conf, full_key_path)
+      udt_transformations = {}
+      udt_conf['fields'].each do |field_conf|
+        udt_transformations[field_conf['key']] = create_udt_field_transformation(field_conf, full_key_path)
       end
-      filter_transform
-    end
-
-    def assert_filter_transform_structure(filter_transform)
-      filter_transform.each { |item|
-        if !item.has_key?('event_key') || !item.has_key?('column_name')
-          raise ArgumentError, "item is incorrectly configured in filter_transform:\nitem => #{item}\nfilter_transform => #{filter_transform}"
+      lambda do |data, event|
+        # apply transformation to every field
+        result = {}
+        udt_transformations.each do |key, transformation|
+          result[key] = transformation[data, event]
         end
-      }
+        return ::Cassandra::UDT.new(result)
+      end
     end
 
-    def add_event_value_from_column_definition(event, column, action)
-      raw_event_data = true
-      event_data = event
-      column_path = @column_paths[column]
-      for key in column_path
-        event_data = event_data[key]
-        if event_data == nil
-          case column['on_nil']
-            when nil, 'fail'
-              raise ArgumentError, "Event data is nil by key `#{column['event_key']}`. event: #{event}"
-            when 'ignore'
-              return
-            when 'ignore warn'
-              @logger.warn("Event data is nil by key `#{column['event_key']}`. event: #{event}")
-              return
-            when 'default'
-              event_data = get_default_value(event, column)
-              raw_event_data = false
-            when 'default warn'
-              @logger.warn("Event data is nil by key `#{column['event_key']}`. event: #{event}")
-              event_data = get_default_value(event, column)
-              raw_event_data = false
-            else
-              raise ArgumentError, "Invalid configuration. Invalid on_nil value `#{column['on_nil']}` in column config `#{column}`"
-          end
-        end
-      end
-      if raw_event_data
-        cassandra_type = event.sprintf(column['cassandra_type'])
-        begin
-          event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
-        rescue Exception => e
-          case column['on_invalid']
-            when nil, 'fail'
-              raise ArgumentError, "Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}"
-            when 'ignore'
-              return
-            when 'ignore warn'
-              @logger.warn("Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}")
-              return
-            when 'default'
-              event_data = get_default_value(event, column)
-            when 'default warn'
-              @logger.warn("Event data by key `#{column['event_key']}` is invalid for type `#{cassandra_type}`. event: #{event}")
-              event_data = get_default_value(event, column)
-            else
-              raise ArgumentError, "Invalid configuration. Invalid on_nil value `#{column['on_nil']}` in column config `#{column}`"
-          end
-        end
-      end
-      column_name = event.sprintf(column['column_name'])
-      action['data'][column_name] = event_data
+    def create_udt_field_transformation(field_conf, full_key_path)
+      key_path, raw_path = split_key_path(field_conf)
+      create_field_transformation(key_path, "#{full_key_path}#{raw_path}", field_conf)
     end
 
-    def add_event_value_from_filter_to_action(event, filter, action)
-      event_data = event.sprintf(filter['event_key'])
-      unless filter.fetch('expansion_only', false)
-        event_data = event[event_data]
-      end
-      if filter.has_key?('cassandra_type')
-        cassandra_type = event.sprintf(filter['cassandra_type'])
-        event_data = convert_value_to_cassandra_type_or_default_if_configured(event_data, cassandra_type)
-      end
-      column_name = event.sprintf(filter['column_name'])
-      action['data'][column_name] = event_data
+    def create_column_transformation(field_conf)
+      key_path, raw_path = split_key_path(field_conf)
+      create_field_transformation(key_path, raw_path, field_conf)
     end
 
-    def add_event_data_using_configured_hints(event, action)
-      action_data = event.to_hash.reject { |key| %r{^@} =~ key }
-      
-      @hints.each do |event_key, cassandra_type|
-        if action_data.has_key?(event_key)
-          action_data[event_key] = convert_value_to_cassandra_type_or_default_if_configured(action_data[event_key], cassandra_type)
-        end
-      end
-      action['data'] = action_data
-    end
-
-    def convert_value_to_cassandra_type_or_default_if_configured(event_data, cassandra_type)
-      typed_event_data = nil
-      begin
-        typed_event_data = convert_value_to_cassandra_type(event_data, cassandra_type)
-      rescue Exception => e
-        error_message = "Cannot convert `value (`#{event_data}`) to `#{cassandra_type}` type"
-        if @ignore_bad_values
-          typed_event_data = get_default_value_by_type(cassandra_type)
-          @logger.warn(error_message, :exception => e, :backtrace => e.backtrace)
-        else
-          @logger.error(error_message, :exception => e, :backtrace => e.backtrace)
-          raise error_message
-        end
-      end
-      typed_event_data
-    end
-
-    def get_default_value(event, column)
-      cassandra_type = event.sprintf(column['cassandra_type'])
-      default = event.sprintf(column['default'])
-      if default == nil
-        return get_default_value_by_type(cassandra_type)
+    def split_key_path(field_conf)
+      raw_path = field_conf['key']
+      if raw_path == nil
+        raw_path = field_conf['name']
+        key_path = raw_path
       else
-        return convert_value_to_cassandra_type(default, cassandra_type)
+        key_path = raw_path.split(/[\[\]]/).map { |s| s.strip }.select { |s| !s.empty? }
+        if key_path.empty?
+          raise ArgumentError, "Invalid configuration. Invalid key value `#{raw_path}` in config `#{field_conf}`"
+        end
       end
+      unless raw_path.match(/\[.*\]/)
+        raw_path = "[#{raw_path}]"
+      end
+      return key_path, raw_path
     end
 
-    def get_default_value_by_type(cassandra_type)
-      case cassandra_type
-        when 'float', 'int', 'varint', 'bigint', 'double', 'counter', 'timestamp'
-          return convert_value_to_cassandra_type(0, cassandra_type)
-        when 'timeuuid'
-          return convert_value_to_cassandra_type('00000000-0000-0000-0000-000000000000', cassandra_type)
-        when 'inet'
-          return convert_value_to_cassandra_type('0.0.0.0', cassandra_type)
-        when /^list<.*>$/
-          return convert_value_to_cassandra_type([], cassandra_type)
-        when /^set<.*>$/
-          return convert_value_to_cassandra_type([], cassandra_type)
-        else
-          raise ArgumentError, "unable to provide a default value for type #{event_data}"
-      end
-    end
-
-    def convert_value_to_cassandra_type(event_data, cassandra_type)
-      case cassandra_type
-        when 'timestamp'
-          converted_value = event_data
-          if converted_value.is_a?(Numeric)
-            converted_value = Time.at(converted_value)
-          elsif converted_value.respond_to?(:to_s)
-            converted_value = Time::parse(event_data.to_s)
+    def create_field_transformation(key_path, raw_path, field_conf)
+      type = field_conf['type']
+      type_transformation = create_type_transformation(type, raw_path)
+      lambda do |data, event|
+        needs_transformation = true
+        for key in key_path
+          data = data[key]
+          if data == nil
+            case field_conf['on_nil']
+              when nil, 'fail'
+                raise ArgumentError, "Event data is nil by key `#{key}` in path `#{raw_path}`. event: #{event}"
+              when 'ignore'
+                return
+              when 'ignore warn'
+                @logger.warn("Event data is nil by key `#{key}` in path `#{raw_path}. event: #{event}")
+                return
+              when 'default'
+                data = get_default_value(field_conf)
+                needs_transformation = false # default values are already transformed
+              when 'default warn'
+                @logger.warn("Event data is nil by key `#{key}` in path `#{raw_path}. event: #{event}")
+                data = get_default_value(field_conf)
+                needs_transformation = false # default values are already transformed
+              else
+                raise ArgumentError, "Invalid configuration. Invalid on_nil value `#{field_conf['on_nil']}` in column config `#{field_conf}`"
+            end
+            break
           end
-          return ::Cassandra::Types::Timestamp.new(converted_value)
-        when 'inet'
-          return ::Cassandra::Types::Inet.new(event_data)
-        when 'float'
-          return ::Cassandra::Types::Float.new(event_data)
-        when 'varchar'
-          return ::Cassandra::Types::Varchar.new(event_data)
-        when 'text'
-          return ::Cassandra::Types::Text.new(event_data)
-        when 'blob'
-          return ::Cassandra::Types::Blob.new(event_data)
-        when 'ascii'
-          return ::Cassandra::Types::Ascii.new(event_data)
-        when 'bigint'
-          return ::Cassandra::Types::Bigint.new(event_data)
-        when 'counter'
-          return ::Cassandra::Types::Counter.new(event_data)
-        when 'int'
-          return ::Cassandra::Types::Int.new(event_data)
-        when 'varint'
-          return ::Cassandra::Types::Varint.new(event_data)
-        when 'boolean'
-          return ::Cassandra::Types::Boolean.new(event_data)
-        when 'decimal'
-          return ::Cassandra::Types::Decimal.new(event_data)
-        when 'double'
-          return ::Cassandra::Types::Double.new(event_data)
-        when 'timeuuid'
-          return ::Cassandra::Types::Timeuuid.new(event_data)
-        when /^list<(.*)>$/
-          # convert each value
-          # then add all to an array
+        end
+        if needs_transformation
+          begin
+            data = type_transformation[data, event]
+          rescue Exception => e
+            case field_conf['on_invalid']
+              when nil, 'fail'
+                raise ArgumentError, "Event data by key `#{raw_path}` is invalid for type `#{type}`, error: #{e.message}, event: #{event}"
+              when 'ignore'
+                return
+              when 'ignore warn'
+                @logger.warn("Event data by key `#{raw_path}` is invalid for type `#{type}`, error: #{e.message}, event: #{event}")
+                return
+              when 'default'
+                data = get_default_value(field_conf)
+              when 'default warn'
+                @logger.warn("Event data by key `#{raw_path}` is invalid for type `#{type}`, error: #{e.message}, event: #{event}")
+                data = get_default_value(field_conf)
+              else
+                raise ArgumentError, "Invalid configuration. Invalid on_invalid value `#{field_conf['on_invalid']}` in column config `#{field_conf}`"
+            end
+          end
+        end
+        return data
+      end
+    end
+
+    # Creates transformation of data to a given cassandra type
+    # Generally type transformation does not define default behavior, but it may return udt transformation which will
+    def create_type_transformation(type, full_key_path)
+      if @simple_type_transformations.has_key?(type)
+        return @simple_type_transformations[type]
+      elsif /^list<(.*)>$/.match(type)
+        type_transformation = create_type_transformation($1, "#{full_key_path}[#]")
+        return lambda { |data, event|
           converted_items = []
-          set_type = $1
-          @logger.warn("LIST #{event_data} of type (#{set_type})")
-          event_data.each { |item|
-            @logger.warn("CONVERT ITEM (#{item}) of type (#{set_type})")
-            converted_item = convert_value_to_cassandra_type(item, set_type)
-            converted_items << converted_item
-          }
+          data.each { |data_item| converted_items << type_transformation[data_item, event] }
           return converted_items
-        when /^set<(.*)>$/
-          # convert each value
-          # then add all to an array and convert to set
+        }
+      elsif /^set<(.*)>$/.match(type)
+        type_transformation = create_type_transformation($1, "#{full_key_path}[#]")
+        return lambda { |data, event|
           converted_items = ::Set.new
-          set_type = $1
-          event_data.each { |item|
-            converted_item = convert_value_to_cassandra_type(item, set_type)
-            converted_items.add(converted_item)
-          }
+          data.each { |data_item| converted_items << type_transformation[data_item, event] }
           return converted_items
+        }
+      elsif @udt_configs.has_key?(type)
+        return create_udt_transformation(@udt_configs[type], full_key_path)
+      else
+        raise "Unknown cassandra_type #{type}"
+      end
+    end
+
+    def get_default_value(field_conf)
+      type = field_conf['type']
+      default = field_conf['default']
+      if default == nil
+        return get_default_value_by_type(type)
+      else
+        if @simple_type_transformations.has_key?(type)
+          return @simple_type_transformations[type][default, nil]
         else
-          raise "Unknown cassandra_type #{name}"
+          raise ArgumentError, "Invalid configuration. Found explicitly configured default value `#{default}` in config `#{field_conf}` with type `#{type}`. Explicit default values are not supported for collections or user defined types"
+        end
+      end
+    end
+
+    def get_default_value_by_type(type)
+      case type
+        when 'float', 'int', 'varint', 'bigint', 'double', 'counter', 'timestamp'
+          return @simple_type_transformations[type][0, nil]
+        when 'timeuuid'
+          return @simple_type_transformations[type]['00000000-0000-0000-0000-000000000000', nil]
+        when 'inet'
+          return @simple_type_transformations[type]['0.0.0.0', nil]
+        when /^list<.*>$/
+          return []
+        when /^set<.*>$/
+          return Set.new
+        else
+          raise ArgumentError, "Unable to provide a default value for type #{type}"
       end
     end
   end
