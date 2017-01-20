@@ -268,6 +268,60 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     end
   end
 
+  describe 'map mapping' do
+    let(:opts) {
+      opts = default_opts.clone
+      opts.update({ 'columns' => [{ 'key' => field_name, 'name' => column_name, 'type' => mapping[:name] }]})
+      opts
+    }
+    context 'when map is full' do
+      let(:mapping) { { :name => "map<int, text>", :value => {1 => 'one', 2 => 'two', 3 => 'three'} } }
+      it 'correctly maps to full set' do
+        sample_event[field_name] = mapping[:value]
+        action = sut_instance.parse(sample_event)
+
+        expect(action['data'][column_name]).to(eq(mapping[:value ]))
+      end
+    end
+    context 'when map is empty' do
+      let(:mapping) { { :name => "map<int, text>", :value => {} } }
+      it 'maps to empty set' do
+        sample_event[field_name] = mapping[:value]
+        action = sut_instance.parse(sample_event)
+
+        expect(action['data'][column_name]).to(eq(mapping[:value]))
+      end
+    end
+    describe 'use of implicit default value on nil' do
+      let(:mapping) { { :name => "map<int, text>", :value => nil, :expected => {} } }
+      let(:opts) {
+        opts = default_opts.clone
+        opts.update({ 'columns' => [{ 'key' => field_name, 'name' => column_name, 'type' => mapping[:name], 'on_nil' => 'default' }]})
+        opts
+      }
+      it 'maps to empty set' do
+        sample_event[field_name] = mapping[:value]
+        action = sut_instance.parse(sample_event)
+
+        expect(action['data'][column_name]).to eq(mapping[:expected])
+      end
+    end
+    describe 'use of implicit default value on parse failure' do
+      let(:mapping) { { :name => "map<int, text>", :value => 'invalid value', :expected => {} } }
+      let(:opts) {
+        opts = default_opts.clone
+        opts.update({ 'columns' => [{ 'key' => field_name, 'name' => column_name, 'type' => mapping[:name], 'on_invalid' => 'default' }]})
+        opts
+      }
+      it 'maps to empty set' do
+        sample_event[field_name] = mapping[:value]
+        action = sut_instance.parse(sample_event)
+
+        expect(action['data'][column_name]).to eq(mapping[:expected])
+      end
+    end
+  end
+
   describe 'user defined type mapping' do
     describe 'single udt mapping' do
       let(:udt) {{
@@ -375,7 +429,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
     end
 
     describe 'nested udt and collection mappings' do
-      # Testing a list of udt_3, that contains a set of udt_2, which in turn contains a udt_1 field
+      # Testing a list of udt_3, that contains a map of text => udt_2, which in turn contains a udt_1 field
       let(:udt_1) {{
         'name' => 'udt_1',
         'fields' => [
@@ -395,15 +449,15 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         'name' => 'udt_3',
         'fields' => [
           { 'key' => 'field_3_1', 'type' => 'text' },
-          { 'key' => 'field_3_2', 'type' => 'set<udt_2>' }
+          { 'key' => 'field_3_2', 'type' => 'map<text, udt_2>' }
         ]
       }}
       let(:udt_value) {
         [
           {
             'field_3_1' => '1',
-            'field_3_2' => [
-              {
+            'field_3_2' => {
+              'key_1' => {
                 'field_2_1' => '1_1',
                 'field_2_2' => {
                   'field_1_1' => 123,
@@ -411,7 +465,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
                   'field_1_3' => '1982-05-04 00:00:00 +0300'
                 }
               },
-              {
+              'key_2' => {
                 'field_2_1' => '1_2',
                 'field_2_2' => {
                   'field_1_1' => 456,
@@ -419,12 +473,11 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
                   'field_1_3' => '1987-07-28 00:00:00 +0300'
                 }
               }
-            ]
+            }
           },
           {
             'field_3_1' => '2',
-            'field_3_2' => [
-            ]
+            'field_3_2' => { }
           }
         ]
       }
@@ -432,8 +485,8 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
         [
           ::Cassandra::UDT.new({
             'field_3_1' => ::Cassandra::Types::Text.new('1'),
-            'field_3_2' => Set.new([
-              ::Cassandra::UDT.new({
+            'field_3_2' => {
+              ::Cassandra::Types::Text.new('key_1') => ::Cassandra::UDT.new({
                 'field_2_1' => ::Cassandra::Types::Text.new('1_1'),
                 'field_2_2' => ::Cassandra::UDT.new({
                   'field_1_1' => ::Cassandra::Types::Int.new(123),
@@ -441,7 +494,7 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
                   'field_1_3' => ::Cassandra::Types::Timestamp.new(Time::parse('1982-05-04 00:00:00 +0300'))
                 })
               }),
-              ::Cassandra::UDT.new({
+              ::Cassandra::Types::Text.new('key_2') => ::Cassandra::UDT.new({
                 'field_2_1' => ::Cassandra::Types::Text.new('1_2'),
                 'field_2_2' => ::Cassandra::UDT.new({
                   'field_1_1' => ::Cassandra::Types::Int.new(456),
@@ -449,11 +502,11 @@ RSpec.describe LogStash::Outputs::Cassandra::EventParser do
                   'field_1_3' => ::Cassandra::Types::Timestamp.new(Time::parse('1987-07-28 00:00:00 +0300'))
                 })
               })
-            ])
+            }
           }),
           ::Cassandra::UDT.new({
             'field_3_1' => ::Cassandra::Types::Text.new('2'),
-            'field_3_2' => Set.new
+            'field_3_2' => {}
           })
         ]
       }

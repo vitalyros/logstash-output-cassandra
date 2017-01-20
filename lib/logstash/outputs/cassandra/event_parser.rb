@@ -177,17 +177,29 @@ module LogStash module Outputs module Cassandra
       if @simple_type_transformations.has_key?(type)
         return @simple_type_transformations[type]
       elsif /^list<(.*)>$/.match(type)
-        type_transformation = create_type_transformation($1, "#{full_key_path}[#]")
+        type_transformation = create_type_transformation($1, "#{full_key_path}[#list#]")
         return lambda { |data, event|
           converted_items = []
           data.each { |data_item| converted_items << type_transformation[data_item, event] }
           return converted_items
         }
       elsif /^set<(.*)>$/.match(type)
-        type_transformation = create_type_transformation($1, "#{full_key_path}[#]")
+        type_transformation = create_type_transformation($1.strip, "#{full_key_path}[#set#]")
         return lambda { |data, event|
           converted_items = ::Set.new
           data.each { |data_item| converted_items << type_transformation[data_item, event] }
+          return converted_items
+        }
+      elsif /^map<(.*),(.*)>$/.match(type)
+        key_type_transformation = create_type_transformation($1.strip, "#{full_key_path}[#map_key#]")
+        value_type_transformation = create_type_transformation($2.strip, "#{full_key_path}[#map_value#]")
+        return lambda { |data, event|
+          converted_items = {}
+          data.each { |key, value|
+            transformed_key = key_type_transformation[key, event]
+            transformed_value = value_type_transformation[value, event]
+            converted_items[transformed_key] = transformed_value
+          }
           return converted_items
         }
       elsif @udt_configs.has_key?(type)
@@ -219,6 +231,8 @@ module LogStash module Outputs module Cassandra
           return @simple_type_transformations[type]['00000000-0000-0000-0000-000000000000', nil]
         when 'inet'
           return @simple_type_transformations[type]['0.0.0.0', nil]
+        when /^map<.*>$/
+          return {}
         when /^list<.*>$/
           return []
         when /^set<.*>$/
