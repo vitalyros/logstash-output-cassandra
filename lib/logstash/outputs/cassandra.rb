@@ -37,15 +37,17 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # Password
   config :password, :validate => :string, :required => true
 
-  # An optional config, alternative to the filter_transform filter_transform_event_key and hints
-  # In the form of hash this config strictly defines which event data should be saved to which cassandra columns of the target table.
+  # Defines mapping of event data to a cassandra table.
   # It is required to set the the types of these cassandra columns.
-  # It is possible to define the behavior in cases when event data is absent or invalid (impossible to transform to cassandra data type)
-  # The config structure:
-  # * column_name => mandatory string. Name of the cassandra column to save to.
-  # * cassandra_type => mandatory string. Cassandra type of the column.
-  # * event_key => mandatory string. A pointer to saved event data. Either a top level event key, or a path to the data in [..][..].. notation
+  # Supports simple cassandra types, sets, lists and user defined types.
+  # User defined types can be used only if they are defined in user_defined_types config.
+  # It is possible to define the behavior in cases when event data is absent or invalid (impossible to transform to cassandra data type).
+  # The config is an array of hashes with the following keys:
+  # * name => mandatory string. Name of the cassandra column to save to.
+  # * type => mandatory string. Cassandra type of the column.
+  # * key => optional string. A pointer to saved event data. Either a top level event key, or a path to the data in [..][..].. notation.
   #     e.g. [top_level_key][child_key_1][child_key_2]
+  #     if nil, a `name` parameter value will be used instead, [..][..].. notation will not be supported in this case
   # * on_nil => optional string. Default value is "fail".
   #     Defines behavior in the case when event data is absent (or nil) by the given event_key
   # * on_invalid => optional string. Default value is "fail".
@@ -63,34 +65,45 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   #
   # * default => optional string. Undefined by default. Default value used when either on_nil, or on_invalid is set to 'default'
   # Examples:
-  #   for optional column { column_name => "comment" column_type => "text" on_nil => "ignore" on_invalid => "ignore warn"}
-  #   for default value column { column_name => "amount" column_type => "int" on_nil => "default" default => "0"}
-  #   for mandatory column { column_name => "id" column_type => "text" }
+  #   for optional column { key => "[data][comment]" name => "comment" type => "text" on_nil => "ignore" on_invalid => "ignore warn"}
+  #   for default value column { key => "[data][amount]" name => "amount" type => "int" on_nil => "default" default => "0"}
+  #   for mandatory column { name => "id" type => "text" }
+  #   for user defined type column, see `user_defined_types` example { name => "user_data" type => "user_data" }
   config :columns, :validate => :array, :default => []
 
-  # An optional hash describing how / what to transform / filter from the original event
-  # Each key is expected to be of the form { event_key => "..." column_name => "..." cassandra_type => "..." }
-  # Event level processing (e.g. %{[key]}) is supported for all three
-  # In case you only want to do string expansion (e.g. in the case of adding event specific dates) you can add the expansion_only key with a value of true
-  # Example: using { event_key => "%{+yyyyMMddHH}" column_name => "date" expansion_only => true } will result in a date column with a string of the specified format
-  config :filter_transform, :validate => :array, :default => []
 
-  # An optional string which points to the event specific location from which to pull the filter_transform definition
-  # The contents need to conform with those defined for the filter_transform config setting
-  # Event level processing (e.g. %{[key]}) is supported
-  config :filter_transform_event_key, :validate => :string, :default => nil
-
-  # An optional hints hash which will be used in case filter_transform or filter_transform_event_key are not in use
-  # It is used to trigger a forced type casting to the cassandra driver types in
-  # the form of a hash from column name to type name in the following manner:
-  # hints => {
-  #    id => "int"
-  #    at => "timestamp"
-  #    resellerId => "int"
-  #    errno => "int"
-  #    duration => "float"
-  #    ip => "inet" }
-  config :hints, :validate => :hash, :default => {}
+  # Defines types that can be used in `columns` configuration
+  # These types are intended to map a hash field that is part of an event to the value of a cassandra user defined type.
+  # It is possible to define the behavior in cases when event data is absent or invalid (impossible to transform to cassandra data type)
+  # NOTE: in runtime, if after the transformation and application of on_nil / on_invalid behavior the resulting user defined type value is an empty hash - will raise an error.
+  # The config structure:
+  # * name => mandatory string. Name of the type as it can be used in `columns` configuration. May not correspond to the name of the cassandra user defined type.
+  # * fields => an array of hashes, mandatory, at least one item is required.
+  #   Can contain following key => value pairs:
+  #   * name => mandatory string. Name of the cassandra column to save to.
+  #   * type => mandatory string. Cassandra type of the column.
+  #   * key => optional string. A pointer to saved event data. Either a top level event key, or a path to the data in [..][..].. notation.
+  #       e.g. [top_level_key][child_key_1][child_key_2]
+  #       if nil, a `name` parameter value will be used instead, [..][..].. notation will not be supported in this case
+  # * on_nil => optional string,
+  #     Defines behavior in the case when event data is absent (or nil) by the given event_key
+  # * on_invalid => optional string. Default value is "fail".
+  #     Defines behavior in the case when the data by given event_key can't be translated to the given cassandra_type
+  #
+  #     See columns config for possible values of on_nil and on_invalid
+  #
+  # Examples:
+  #   user_defined_types => [
+  #     { name => "user_data"
+  #       fields => [
+  #         { key => "name" type => "text" },
+  #         { key => "age" type => "int" },
+  #         { key => "city" type => "text" on_nil => "ignore" } # optional field
+  #       ]
+  #     }
+  #   ]
+  # #
+  config :user_defined_types, :validate => :array, :default => []
 
   # The retry policy to use (the default is the default retry policy)
   # the hash requires the name of the policy and the params it requires
@@ -111,9 +124,6 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
 
   # The command execution timeout
   config :request_timeout, :validate => :number, :default => 1
-
-  # Ignore bad values
-  config :ignore_bad_values, :validate => :boolean, :default => false
 
   # In Logstashes >= 2.2 this setting defines the maximum sized bulk request Logstash will make
   # You you may want to increase this to be in line with your pipeline's batch size.
@@ -147,6 +157,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   # If absent, ttl is not used for the record
   config :ttl, :validate => :number, :default => nil
 
+
   def register
     setup_event_parser
     setup_safe_submitter
@@ -178,9 +189,7 @@ class LogStash::Outputs::CassandraOutput < LogStash::Outputs::Base
   private
   def setup_event_parser
     @event_parser = ::LogStash::Outputs::Cassandra::EventParser.new(
-      'logger' => @logger, 'table' => @table, 'columns' => @columns,
-      'filter_transform_event_key' => @filter_transform_event_key, 'filter_transform' => @filter_transform,
-      'hints' => @hints, 'ignore_bad_values' => @ignore_bad_values
+      'logger' => @logger, 'table' => @table, 'columns' => @columns, 'user_defined_types' => @user_defined_types
     )
   end
 

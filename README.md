@@ -37,18 +37,71 @@ output {
         # Password
         password => "cassandra"
 
-        # An optional hints hash which will be used in case filter_transform or filter_transform_event_key are not in use
-        # It is used to trigger a forced type casting to the cassandra driver types in
-        # the form of a hash from column name to type name in the following manner:
-        hints => {
-            id => "int"
-            at => "timestamp"
-            resellerId => "int"
-            errno => "int"
-            duration => "float"
-            ip => "inet"
-        }
+        # Defines mapping of event data to a cassandra table.
+        # It is required to set the the types of these cassandra columns.
+        # Supports simple cassandra types, sets, lists and user defined types.
+        # User defined types can be used only if they are defined in user_defined_types config.
+        # It is possible to define the behavior in cases when event data is absent or invalid (impossible to transform to cassandra data type).
+        # The config is an array of hashes with the following keys:
+        # * name => mandatory string. Name of the cassandra column to save to.
+        # * type => mandatory string. Cassandra type of the column.
+        # * key => optional string. A pointer to saved event data. Either a top level event key, or a path to the data in [..][..].. notation.
+        #     e.g. [top_level_key][child_key_1][child_key_2]
+        #     if nil, a `name` parameter value will be used instead, [..][..].. notation will not be supported in this case
+        # * on_nil => optional string. Default value is "fail".
+        #     Defines behavior in the case when event data is absent (or nil) by the given event_key
+        # * on_invalid => optional string. Default value is "fail".
+        #     Defines behavior in the case when the data by given event_key can't be translated to the given cassandra_type
+        #
+        #     Both on_nil and on_invalid have the same form. Its one of the predefined strings:
+        #     "fail" => an exception will be raised, consequently the event will not be saved to cassandra table.
+        #     "ignore" => this column will either be skipped entirely (absent in an insert request to cassandra).
+        #       This behavior can be used for optional columns, when it is unnecessary for incoming events to contain full set of data.
+        #       This behavior can't be used for partitioning or clustering keys of the cassandra table, since they are mandatory.
+        #     "ignore warn" => same behavior, as for "ignore", but a detailed warning message will be logged
+        #     "default" => the value, set in the "default" field wfieldill be used.
+        #       If the "default" field is not set, the default value will be chosen automatically, depending on the cassandra_type.
+        #     "default warn" => same behavior, as for "default", but a detailed warning message will be logged.
+        #
+        # * default => optional string. Undefined by default. Default value used when either on_nil, or on_invalid is set to 'default'
+        columns => [
+            { name => "id" type => "text" },
+            { key => "[data][comment]" name => "comment" type => "text" on_nil => "ignore" on_invalid => "ignore warn"},
+            { key => "[data][amount]" name => "amount" type => "int" on_nil => "default" default => "0"}.
+            { name => "user_data" type => "user_data" }
+        ]
 
+        # Defines types that can be used in `columns` configuration
+        # These types are intended to map a hash field that is part of an event to the value of a cassandra user defined type.
+        # It is possible to define the behavior in cases when event data is absent or invalid (impossible to transform to cassandra data type)
+        # NOTE: in runtime, if after the transformation and application of on_nil / on_invalid behavior the resulting user defined type value is an empty hash - will raise an error.
+        # The config structure:
+        # * name => mandatory string. Name of the type as it can be used in `columns` configuration. May not correspond to the name of the cassandra user defined type.
+        # * fields => an array of hashes, mandatory, at least one item is required.
+        #   Can contain following key => value pairs:
+        #   * name => mandatory string. Name of the cassandra column to save to.
+        #   * type => mandatory string. Cassandra type of the column.
+        #   * key => optional string. A pointer to saved event data. Either a top level event key, or a path to the data in [..][..].. notation.
+        #       e.g. [top_level_key][child_key_1][child_key_2]
+        #       if nil, a `name` parameter value will be used instead, [..][..].. notation will not be supported in this case
+        # * on_nil => optional string,
+        #     Defines behavior in the case when event data is absent (or nil) by the given event_key
+        # * on_invalid => optional string. Default value is "fail".
+        #     Defines behavior in the case when the data by given event_key can't be translated to the given cassandra_type
+        #
+        #     See columns config for possible values of on_nil and on_invalid
+        #
+        user_defined_types => [
+            { 
+                name => "mytype" 
+                fields => [
+                    { key => "some_text" type => "text" },
+                    { key => "some_int" type => "int" },
+                    { key => "some_text_again" type => "text" on_nil => "ignore" }
+                ]
+            }
+        ]
+        
         # The retry policy to use (the default is the default retry policy)
         # the hash requires the name of the policy and the params it requires
         # The available policy names are:
@@ -68,9 +121,6 @@ output {
 
         # The command execution timeout
         request_timeout => 1
-
-        # Ignore bad values
-        ignore_bad_values => false
 
         # In Logstashes >= 2.2 this setting defines the maximum sized bulk request Logstash will make
         # You you may want to increase this to be in line with your pipeline's batch size.
