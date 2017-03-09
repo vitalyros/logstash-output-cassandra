@@ -35,6 +35,7 @@ module LogStash module Outputs module Cassandra
         'bigint'    => lambda { |data, event| return ::Cassandra::Types::Bigint.new(data) },
         'counter'   => lambda { |data, event| return ::Cassandra::Types::Counter.new(data) },
         'int'       => lambda { |data, event| return ::Cassandra::Types::Int.new(data) },
+        'tinyint'   => lambda { |data, event| return ::Cassandra::Types::Tinyint.new(data) },
         'varint'    => lambda { |data, event| return ::Cassandra::Types::Varint.new(data) },
         'boolean'   => lambda { |data, event| return ::Cassandra::Types::Boolean.new(data) },
         'decimal'   => lambda { |data, event| return ::Cassandra::Types::Decimal.new(data) },
@@ -225,7 +226,7 @@ module LogStash module Outputs module Cassandra
 
     def get_default_value_by_type(type)
       case type
-        when 'float', 'int', 'varint', 'bigint', 'double', 'counter', 'timestamp'
+        when 'float', 'int', 'varint', 'bigint', 'double', 'counter', 'timestamp', 'tinyint'
           return @simple_type_transformations[type][0, nil]
         when 'timeuuid'
           return @simple_type_transformations[type]['00000000-0000-0000-0000-000000000000', nil]
